@@ -13,6 +13,7 @@ router.post("/", async (req, res) => {
     });
 
     const savedMessage = await message.save();
+    req.app.get("io").emit("newMessage", savedMessage);
     res.status(201).json(savedMessage);
 
   } catch (error) {
