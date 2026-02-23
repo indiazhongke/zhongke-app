@@ -7,6 +7,7 @@ router.post("/", async (req, res) => {
   try {
     const notification = new Notification(req.body);
     const saved = await notification.save();
+    req.app.get("io").emit("newNotification", saved);
     res.status(201).json(saved);
   } catch (err) {
     res.status(500).json({ error: err.message });
