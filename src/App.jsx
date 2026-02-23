@@ -14,7 +14,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { io } from "socket.io-client";
 import API from "./api/axios";
 
-const socket = io("http://localhost:5050", {
+const socket = io("https://zhongke-app-zgf2.onrender.com/api", {
   transports: ["websocket"],
 });
 
