@@ -11,24 +11,37 @@ import {
   useDraggable
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
+import { io } from "socket.io-client";
 import API from "./api/axios";
 
+const socket = io("http://localhost:5050", {
+  transports: ["websocket"],
+});
 
 /* ================= MAIN APP ================= */
 
 function App() {
-  const [active, setActive] = useState("dashboard");
+  const [active, setActive] = useState(() => {
+    return localStorage.getItem("activeTab") || "dashboard";
+  });
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
   const [reports, setReports] = useState([]);
-  const [role, setRole] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
+  const [role, setRole] = useState(() => {
+    return localStorage.getItem("role");
+  });
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem("currentUser");
+    return savedUser ? JSON.parse(savedUser) : null;
+  });
   const [showModal, setShowModal] = useState(false);
   const [toast, setToast] = useState("");
   const [notifications, setNotifications] = useState([]);
   const [messages, setMessages] = useState([]);
   const [showMemberModal, setShowMemberModal] = useState(false);
+  const [taskSearch, setTaskSearch] = useState("");
+const [taskFilter, setTaskFilter] = useState("All");
   const [memberForm, setMemberForm] = useState({
     name: "",
     phone: "",
@@ -54,7 +67,7 @@ function App() {
     members: []
   });
 
-const [analytics, setAnalytics] = useState({
+  const [analytics, setAnalytics] = useState({
     pending: 0,
     progress: 0,
     completed: 0,
@@ -74,6 +87,29 @@ const [analytics, setAnalytics] = useState({
     fileData: ""
   });
 
+  // Helper function to play notification sound - defined early to be available for use
+  // Pre-load the audio for better performance
+  const notificationSound = new Audio(
+    "https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3"
+  );
+  
+  const playNotificationSound = () => {
+    try {
+      // Reset to beginning in case it's already playing
+      notificationSound.currentTime = 0;
+      notificationSound.volume = 0.5;
+      
+      // Play the sound - this requires user interaction first
+      notificationSound.play().then(() => {
+        console.log("🔔 Notification sound playing");
+      }).catch((err) => {
+        console.log("Sound play failed:", err.message);
+      });
+    } catch (err) {
+      console.log("Sound error:", err);
+    }
+  };
+
 
   const addNotification = async (message, targetRole = "all") => {
     try {
@@ -86,8 +122,7 @@ const [analytics, setAnalytics] = useState({
       setNotifications(prev => [res.data, ...prev]);
 
       // 🔊 Sound
-      const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
-      audio.play().catch(() => { });
+      playNotificationSound();
     } catch (err) {
       console.log("Notification error:", err.response?.data || err.message);
     }
@@ -130,7 +165,7 @@ const [analytics, setAnalytics] = useState({
 
   useEffect(() => {
     tasks
-      .filter(t => t && t._id)
+      .filter(t => t && t.id)
       .forEach(task => {
         if (
           task.dueDate &&
@@ -180,7 +215,7 @@ const [analytics, setAnalytics] = useState({
       const res = await API.put(`/todos/${id}`, { status });
 
       setTodos(prev =>
-        prev.map(t => (t._id === id ? res.data : t))
+        prev.map(t => (t.id === id ? res.data : t))
       );
     } catch (err) {
       console.log(err);
@@ -191,7 +226,7 @@ const [analytics, setAnalytics] = useState({
   const deleteTodo = async (id) => {
     try {
       await API.delete(`/todos/${id}`);
-      setTodos(prev => prev.filter(t => t._id !== id));
+      setTodos(prev => prev.filter(t => t.id !== id));
     } catch (err) {
       console.log(err);
     }
@@ -199,7 +234,7 @@ const [analytics, setAnalytics] = useState({
 
 
   const editTodo = async (id) => {
-    const todo = todos.find(t => t._id === id);
+    const todo = todos.find(t => t.id === id);
     if (!todo) return;
 
     const newTitle = prompt("Edit todo", todo.title);
@@ -212,7 +247,7 @@ const [analytics, setAnalytics] = useState({
 
       setTodos(prev =>
         prev.map(t =>
-          t._id === id ? res.data : t
+          t.id === id ? res.data : t
         )
       );
 
@@ -221,6 +256,45 @@ const [analytics, setAnalytics] = useState({
       console.log(err);
     }
   };
+
+useEffect(() => {
+  console.log("🔌 Connecting socket...");
+
+  // Check if socket is already connected
+  if (!socket.connected) {
+    socket.connect();
+  }
+
+  socket.on("connect", () => {
+    console.log("✅ Socket connected:", socket.id);
+  });
+
+  socket.on("newMessage", (message) => {
+    console.log("🔥 SOCKET MESSAGE RECEIVED");
+
+    setMessages((prev) => [message, ...prev]);
+
+    // 🔊 Play sound for new message
+    playNotificationSound();
+  });
+
+  socket.on("newNotification", (notification) => {
+    console.log("🔔 NEW NOTIFICATION RECEIVED");
+
+    setNotifications((prev) => [notification, ...prev]);
+
+    // 🔊 Play sound for new notification
+    playNotificationSound();
+  });
+
+  // Cleanup on unmount
+  return () => {
+    socket.off("connect");
+    socket.off("newMessage");
+    socket.off("newNotification");
+  };
+}, []);
+
 
   /* ================= PERSISTENCE ================= */
 
@@ -350,8 +424,13 @@ const [analytics, setAnalytics] = useState({
           <button
             onClick={() => {
               const pass = prompt("Enter Admin Password");
-              if (pass === "1234") setRole("admin");
-              else alert("Wrong password");
+
+              if (pass === "1234") {
+                setRole("admin");
+                localStorage.setItem("role", "admin");
+              } else {
+                alert("Wrong password");
+              }
             }}
             className="w-full bg-blue-600 text-white py-2 rounded mb-4"
           >
@@ -383,7 +462,12 @@ const [analytics, setAnalytics] = useState({
                   setRole("member");
                   setCurrentUser(user);
                   setActive("tasks");
-                } else {
+                  localStorage.setItem("role", "member");
+                  localStorage.setItem("currentUser", JSON.stringify(user));
+                  localStorage.setItem("activeTab", "tasks");
+                }
+
+                else {
                   alert("Invalid credentials");
                 }
               }}
@@ -407,12 +491,19 @@ const [analytics, setAnalytics] = useState({
       ? todos.filter(t => t.owner === "admin")
       : todos.filter(t => t.owner === currentUser?.name);
 
-  const safeTasks = tasks.filter(t => t && t._id);
+  const safeTasks = tasks.filter(t => t && t.id);
 
   const filteredTasks =
     role === "admin"
       ? safeTasks
       : safeTasks.filter(t => t.assignedUser === currentUser?.name);
+      const visibleFilteredTasks = filteredTasks
+  .filter(task =>
+    task.title.toLowerCase().includes(taskSearch.toLowerCase())
+  )
+  .filter(task =>
+    taskFilter === "All" ? true : task.status === taskFilter
+  );
 
   const pending = safeTasks.filter(t => t.status === "Pending").length;
 
@@ -459,12 +550,12 @@ const [analytics, setAnalytics] = useState({
     try {
       const res = await API.put(`/tasks/${id}`, { status });
 
-      if (!res.data || !res.data._id) return;
+      if (!res.data || !res.data.id) return;
 
       setTasks(prev =>
         prev
-          .map(t => (t && t._id === id ? res.data : t))
-          .filter(t => t && t._id)
+          .map(t => (t && t.id === id ? res.data : t))
+          .filter(t => t && t.id)
       );
 
       showMessage("Status Updated");
@@ -480,7 +571,7 @@ const [analytics, setAnalytics] = useState({
       await API.delete(`/tasks/${id}`);
 
       setTasks(prev =>
-        prev.filter(t => t._id !== id)
+        prev.filter(t => t.id !== id)
       );
 
       showMessage("Task Deleted");
@@ -490,7 +581,34 @@ const [analytics, setAnalytics] = useState({
     }
   };
 
+const groupTasksByDate = (tasks) => {
+  const groups = {};
 
+  tasks.forEach((task) => {
+    const dateObj = new Date(task.createdAt);
+    const today = new Date();
+
+    let label;
+
+    if (dateObj.toDateString() === today.toDateString()) {
+      label = "Today";
+    } else {
+      const yesterday = new Date();
+      yesterday.setDate(today.getDate() - 1);
+
+      if (dateObj.toDateString() === yesterday.toDateString()) {
+        label = "Yesterday";
+      } else {
+        label = dateObj.toDateString();
+      }
+    }
+
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(task);
+  });
+
+  return groups;
+};
 
 
 
@@ -574,14 +692,14 @@ const [analytics, setAnalytics] = useState({
 
             {notifications.map(n => (
               <div
-                key={n._id}
+                key={n.id}
                 className={`p-4 rounded shadow ${n.read ? "bg-white" : "bg-blue-50 border-l-4 border-blue-600"
                   }`}
                 onClick={async () => {
-                  await API.put(`/notifications/${n._id}`);
+                  await API.put(`/notifications/${n.id}`);
                   setNotifications(prev =>
                     prev.map(item =>
-                      item._id === n._id ? { ...item, read: true } : item
+                      item.id === n.id ? { ...item, read: true } : item
                     )
                   );
                 }}
@@ -684,7 +802,7 @@ const [analytics, setAnalytics] = useState({
 
             {filteredTodos.map(todo => (
 
-              <div key={todo._id} className="bg-white p-4 rounded shadow">
+              <div key={todo.id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
 
                 <h3 className="font-semibold">{todo.title}</h3>
                 <p>Status: <b>{todo.status}</b></p>
@@ -693,14 +811,14 @@ const [analytics, setAnalytics] = useState({
                 <div className="flex flex-wrap gap-2 mt-3">
 
                   <button
-                    onClick={() => updateTodoStatus(todo._id, "Done")}
+                    onClick={() => updateTodoStatus(todo.id, "Done")}
                     className="bg-green-600 text-white px-3 py-1 rounded"
                   >
                     Done
                   </button>
 
                   <button
-                    onClick={() => updateTodoStatus(todo._id, "Not Done")}
+                    onClick={() => updateTodoStatus(todo.id, "Not Done")}
                     className="bg-yellow-500 text-white px-3 py-1 rounded"
                   >
                     Not Done
@@ -712,7 +830,7 @@ const [analytics, setAnalytics] = useState({
                       if (!note) return;
                       setTodos(prev =>
                         prev.map(t =>
-                          t._id === todo._id ? { ...t, note } : t
+                          t.id === todo.id ? { ...t, note } : t
                         )
                       );
                     }}
@@ -722,14 +840,14 @@ const [analytics, setAnalytics] = useState({
                   </button>
 
                   <button
-                    onClick={() => editTodo(todo._id)}
+                    onClick={() => editTodo(todo.id)}
                     className="bg-blue-600 text-white px-3 py-1 rounded"
                   >
                     Edit
                   </button>
 
                   <button
-                    onClick={() => deleteTodo(todo._id)}
+                    onClick={() => deleteTodo(todo.id)}
                     className="bg-red-600 text-white px-3 py-1 rounded"
                   >
                     Delete
@@ -882,7 +1000,7 @@ const [analytics, setAnalytics] = useState({
             )}
 
             {users.map(user => (
-              <div key={user._id} className="bg-white p-4 rounded shadow mb-3 flex justify-between items-center">
+              <div key={user.id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition mb-3 flex justify-between items-center">
                 <div>
                   <p className="font-semibold">{user.name}</p>
                   <p className="text-sm text-gray-500">Member ID: {user.memberId}</p>
@@ -891,8 +1009,8 @@ const [analytics, setAnalytics] = useState({
 
                 <button
                   onClick={async () => {
-                    await API.delete(`/users/${user._id}`);
-                    setUsers(prev => prev.filter(u => u._id !== user._id));
+                    await API.delete(`/users/${user.id}`);
+                    setUsers(prev => prev.filter(u => u.id !== user.id));
                   }}
                   className="bg-red-600 text-white px-3 py-1 rounded"
                 >
@@ -923,7 +1041,7 @@ const [analytics, setAnalytics] = useState({
             )}
 
             {teams.map(team => (
-              <div key={team._id} className="bg-white p-4 rounded shadow">
+              <div key={team.id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
                 <h3 className="font-semibold text-lg">{team.name}</h3>
                 <p className="text-sm text-gray-500">Work: {team.work}</p>
 
@@ -940,9 +1058,9 @@ const [analytics, setAnalytics] = useState({
 
                 <button
                   onClick={async () => {
-                    await API.delete(`/teams/${team._id}`);
+                    await API.delete(`/teams/${team.id}`);
                     setTeams(prev =>
-                      prev.filter(t => t._id !== team._id)
+                      prev.filter(t => t.id !== team.id)
                     );
                   }}
                   className="mt-3 bg-red-600 text-white px-3 py-1 rounded text-sm"
@@ -958,9 +1076,29 @@ const [analytics, setAnalytics] = useState({
 
         {/* TASKS */}
         {active === "tasks" && (
-          <div className="space-y-4">
+  <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
+    <div className="flex gap-3 flex-wrap mb-4">
+  <input
+    type="text"
+    placeholder="Search task..."
+    value={taskSearch}
+    onChange={(e) => setTaskSearch(e.target.value)}
+    className="border p-2 rounded w-60"
+  />
+
+  <select
+    value={taskFilter}
+    onChange={(e) => setTaskFilter(e.target.value)}
+    className="border p-2 rounded"
+  >
+    <option value="All">All</option>
+    <option value="Pending">Pending</option>
+    <option value="In Progress">In Progress</option>
+    <option value="Completed">Completed</option>
+  </select>
+</div>
             {role === "member" && (
-              <div className="mb-4 bg-white p-4 rounded shadow">
+              <div className="mb-4 bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
                 <h3 className="font-semibold mb-2">My Teams</h3>
 
                 <div className="flex flex-wrap gap-2">
@@ -968,7 +1106,7 @@ const [analytics, setAnalytics] = useState({
                     .filter(team => team.members.includes(currentUser.name))
                     .map(team => (
                       <span
-                        key={team._id}
+                        key={team.id}
                         className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
                       >
                         {team.name}
@@ -978,11 +1116,12 @@ const [analytics, setAnalytics] = useState({
               </div>
             )}
 
-            {filteredTasks
-              .filter(t => t && t._id)
+
+            {visibleFilteredTasks
+              .filter(t => t && t.id)
               .map(task => (
                 <TaskCard
-                  key={task._id}
+                  key={task.id}
                   task={task}
                   role={role}
                   updateStatus={updateStatus}
@@ -994,12 +1133,14 @@ const [analytics, setAnalytics] = useState({
               ))}
 
             {role === "admin" && (
-              <button
-                onClick={() => setShowModal(true)}
-                className="bg-blue-600 text-white px-4 py-2 rounded"
-              >
-                + Create Task
-              </button>
+              <div className="sticky bottom-0 bg-gray-100 py-4">
+                <button
+                  onClick={() => setShowModal(true)}
+                  className="bg-blue-600 text-white px-6 py-3 rounded shadow-lg"
+                >
+                  + Create Task
+                </button>
+              </div>
             )}
 
             {role === "member" && (
@@ -1032,7 +1173,7 @@ const [analytics, setAnalytics] = useState({
 
                 <div className="mt-4 space-y-4">
                   {dailyReports.map(r => (
-                    <div key={r._id} className="border p-3 rounded">
+                    <div key={r.id} className="border p-3 rounded">
 
                       <h3 className="font-semibold">
                         {r.user} ({r.type === "task" ? "Task Report" : "Todo Report"})
@@ -1064,7 +1205,7 @@ const [analytics, setAnalytics] = useState({
                 : 0;
 
               return (
-                <div key={user._id} className="bg-white p-4 rounded shadow">
+                <div key={user.id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
                   <h3>{user.name}</h3>
                   <p>Total: {userTasks.length} | Done: {done}</p>
                   <div className="w-full bg-gray-200 h-3 rounded mt-2">
@@ -1094,7 +1235,7 @@ const [analytics, setAnalytics] = useState({
 
                 setTasks(prev =>
                   prev.map(t =>
-                    t._id === active.id ? { ...res.data } : t
+                    t.id === active.id ? { ...res.data } : t
                   )
                 );
 
@@ -1209,11 +1350,11 @@ function Management({ title, items, setItems }) {
 
 
       {items.map(item => (
-        <div key={item._id} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
+        <div key={item.id} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
           {item.name}
           <button
             onClick={() =>
-              setItems(prev => prev.filter(i => i._id !== item._id))
+              setItems(prev => prev.filter(i => i.id !== item.id))
             }
             className="bg-red-600 text-white px-3 py-1 rounded"
           >
@@ -1295,12 +1436,12 @@ function TaskCard({
       )}
 
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => updateStatus(task._id, "Completed")}
+        <button onClick={() => updateStatus(task.id, "Completed")}
           className="bg-green-600 text-white px-3 py-1 rounded text-sm">
           Done
         </button>
 
-        <button onClick={() => updateStatus(task._id, "In Progress")}
+        <button onClick={() => updateStatus(task.id, "In Progress")}
           className="bg-blue-600 text-white px-3 py-1 rounded text-sm">
           Progress
         </button>
@@ -1340,14 +1481,14 @@ Due: ${task.dueDate || "No due date"}`;
             if (!note) return;
 
             try {
-              const res = await API.put(`/tasks/${task._id}`, {
+              const res = await API.put(`/tasks/${task.id}`, {
                 status: "Pending",
                 note
               });
 
               setTasks(prev =>
                 prev.map(t =>
-                  t._id === task._id ? res.data : t
+                  t.id === task.id ? res.data : t
                 )
               );
 
@@ -1368,13 +1509,13 @@ Due: ${task.dueDate || "No due date"}`;
             if (!note) return;
 
             try {
-              const res = await API.put(`/tasks/${task._id}`, {
+              const res = await API.put(`/tasks/${task.id}`, {
                 note
               });
 
               setTasks(prev =>
                 prev.map(t =>
-                  t._id === task._id ? res.data : t
+                  t.id === task.id ? res.data : t
                 )
               );
 
@@ -1391,7 +1532,7 @@ Due: ${task.dueDate || "No due date"}`;
 
         {role === "admin" && (
           <button
-            onClick={() => deleteTask(task._id
+            onClick={() => deleteTask(task.id
 
 
             )}
@@ -1505,10 +1646,10 @@ function KanbanColumn({ id, tasks }) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
-    <div ref={setNodeRef} className="bg-white p-4 rounded shadow min-h-[300px]">
+    <div ref={setNodeRef} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition min-h-[300px]">
       <h3 className="font-semibold mb-4">{id}</h3>
       {tasks.map(task => (
-        <KanbanItem key={task._id} task={task} />
+        <KanbanItem key={task.id} task={task} />
       ))}
     </div>
   );
@@ -1516,7 +1657,7 @@ function KanbanColumn({ id, tasks }) {
 
 function KanbanItem({ task }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useDraggable({ id: task._id.toString() });
+    useDraggable({ id: task.id.toString() });
 
   const style = {
     transform: CSS.Translate.toString(transform),
@@ -1600,7 +1741,7 @@ function TaskModal({
         >
           <option value="">Select Team (Optional)</option>
           {teams.map(team => (
-            <option key={team._id}>{team.name}</option>
+            <option key={team.id}>{team.name}</option>
           ))}
         </select>
 
@@ -1695,7 +1836,7 @@ function TeamModal({ teamForm, setTeamForm, users, setTeams, setShowTeamModal })
 
           <div className="max-h-32 overflow-y-auto border rounded p-2">
             {users.map(user => (
-              <label key={user._id} className="flex items-center gap-2 text-sm">
+              <label key={user.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={teamForm.members.includes(user.name)}
@@ -1822,39 +1963,86 @@ function MessagesPage({
         m => m.to === me || m.from === me
       );
 
+  const [openDay, setOpenDay] = useState("Today");
+
+  const groupMessagesByDate = (msgs) => {
+    const groups = {};
+
+    msgs.forEach((msg) => {
+      const dateObj = new Date(msg.createdAt);
+      const today = new Date();
+
+      let label;
+
+      if (dateObj.toDateString() === today.toDateString()) {
+        label = "Today";
+      } else {
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+
+        if (dateObj.toDateString() === yesterday.toDateString()) {
+          label = "Yesterday";
+        } else {
+          label = dateObj.toDateString();
+        }
+      }
+
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(msg);
+    });
+
+    return groups;
+  };
+  const groupByDate = groupMessagesByDate(visibleMessages);
 
   return (
     <div className="grid grid-cols-3 gap-6">
 
       {/* Conversation List */}
-      <div className="bg-white p-4 rounded shadow col-span-2">
+      <div className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition col-span-2">
         <h3 className="font-bold mb-4">Inbox</h3>
 
         {visibleMessages.length === 0 && (
           <p className="text-gray-500">No messages yet</p>
         )}
+        {Object.entries(groupByDate).map(([day, msgs]) => (
+          <div key={day} className="mb-4">
 
-        {visibleMessages.map(msg => (
-          <div
-            key={msg._id}
-            className={`mb-3 p-3 rounded ${msg.from === me
-              ? "bg-blue-100 text-right"
-              : "bg-gray-100"
-              }`}
-          >
-            <p className="text-sm font-semibold">
-              {msg.from} → {msg.to}
-            </p>
-            <p>{msg.content}</p>
-            <p className="text-xs text-gray-500 mt-1">
-              {msg.date}
-            </p>
+            <div
+              className="cursor-pointer font-bold bg-gray-200 px-3 py-2 rounded"
+              onClick={() => setOpenDay(openDay === day ? null : day)}
+            >
+              {day} ({msgs.length})
+            </div>
+
+            {openDay === day && (
+              <div className="mt-2 space-y-2">
+                {msgs.map(msg => (
+                  <div
+                    key={msg.id}
+                    className={`p-3 rounded ${msg.from === me
+                      ? "bg-blue-100 text-right"
+                      : "bg-gray-100"
+                      }`}
+                  >
+                    <p className="text-sm font-semibold">
+                      {msg.from} → {msg.to}
+                    </p>
+                    <p>{msg.content}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {new Date(msg.createdAt).toLocaleTimeString()}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+
           </div>
         ))}
       </div>
 
       {/* Send Message */}
-      <div className="bg-white p-4 rounded shadow">
+      <div className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
         <h3 className="font-bold mb-4">Send Message</h3>
 
         <select
@@ -1867,7 +2055,7 @@ function MessagesPage({
           {role === "admin" && (
             <>
               {users.map(u => (
-                <option key={u._id}>{u.name}</option>
+                <option key={u.id}>{u.name}</option>
               ))}
             </>
           )}
@@ -1879,7 +2067,7 @@ function MessagesPage({
               {users
                 .filter(u => u.name !== currentUser.name)
                 .map(u => (
-                  <option key={u._id}>{u.name}</option>
+                  <option key={u.id}>{u.name}</option>
                 ))}
             </>
           )}
