@@ -951,14 +951,14 @@ function App() {
           {/* DASHBOARD */}
           {active === "dashboard" && role === "admin" && (
             <>
-              <div className="grid grid-cols-3 gap-6 mb-8">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                 <StatCard title="Pending" value={analytics.pending} />
                 <StatCard title="In Progress" value={analytics.progress} />
                 <StatCard title="Completed" value={analytics.completed} />
                 <StatCard title="Overdue" value={analytics.overdue} />
               </div>
 
-              <div className="grid grid-cols-2 gap-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <ChartBox>
                   <ResponsiveContainer width="100%" height={300}>
                     <PieChart>
@@ -1087,19 +1087,21 @@ function App() {
           {/* TASKS */}
           {active === "tasks" && (
             <div className="flex flex-col h-full">
+
+              {/* Filters */}
               <div className="flex gap-3 flex-wrap mb-4">
                 <input
                   type="text"
                   placeholder="Search task..."
                   value={taskSearch}
                   onChange={(e) => setTaskSearch(e.target.value)}
-                  className="border p-2 rounded w-60"
+                  className="border p-2 rounded w-full md:w-60"
                 />
 
                 <select
                   value={taskFilter}
                   onChange={(e) => setTaskFilter(e.target.value)}
-                  className="border p-2 rounded"
+                  className="border p-2 rounded w-full md:w-auto"
                 >
                   <option value="All">All</option>
                   <option value="Pending">Pending</option>
@@ -1107,27 +1109,28 @@ function App() {
                   <option value="Completed">Completed</option>
                 </select>
               </div>
-              {role === "member" && (
-                <div className="mb-4 bg-white p-4 rounded shadow">
-                  <h3 className="font-semibold mb-2">My Teams</h3>
 
-                  <div className="flex flex-wrap gap-2">
-                    {teams
-                      .filter(team => team.members.includes(currentUser.name))
-                      .map(team => (
-                        <span
-                          key={team._id}
-                          className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
-                        >
-                          {team.name}
-                        </span>
-                      ))}
+              {/* Scrollable Content */}
+              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+
+                {role === "member" && (
+                  <div className="bg-white p-4 rounded shadow">
+                    <h3 className="font-semibold mb-2">My Teams</h3>
+                    <div className="flex flex-wrap gap-2">
+                      {teams
+                        .filter(team => team.members.includes(currentUser.name))
+                        .map(team => (
+                          <span
+                            key={team.id}
+                            className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
+                          >
+                            {team.name}
+                          </span>
+                        ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
-
-              <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-lg border border-gray-100 transition-all duration-200">
                 {visibleFilteredTasks
                   .filter(t => t && t.id)
                   .map(task => (
@@ -1144,25 +1147,18 @@ function App() {
                   ))}
               </div>
 
+              {/* Sticky Button */}
               {role === "admin" && (
-                <div className="border-t bg-white p-4">
+                <div className="sticky bottom-0 bg-white border-t p-4">
                   <button
                     onClick={() => setShowModal(true)}
-                    className="bg-blue-600 text-white px-6 py-3 rounded shadow-lg"
+                    className="w-full md:w-auto bg-blue-600 text-white px-6 py-3 rounded shadow-lg"
                   >
                     + Create Task
                   </button>
                 </div>
               )}
 
-              {role === "member" && (
-                <MemberButtons
-                  filteredTasks={filteredTasks}
-                  currentUser={currentUser}
-                  setReports={setReports}
-                  addNotification={addNotification}
-                />
-              )}
             </div>
           )}
 
@@ -1257,7 +1253,7 @@ function App() {
               }}
 
             >
-              <div className="grid grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
                 {["Pending", "In Progress", "Completed"].map(status => (
                   <KanbanColumn
                     key={status}
@@ -2009,10 +2005,10 @@ function MessagesPage({
   const groupByDate = groupMessagesByDate(visibleMessages);
 
   return (
-    <div className="grid grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
       {/* Conversation List */}
-      <div className="bg-white p-4 rounded shadow col-span-2">
+      <div className="bg-white p-4 rounded shadow md:col-span-2">
         <h3 className="font-bold mb-4">Inbox</h3>
 
         {visibleMessages.length === 0 && (
