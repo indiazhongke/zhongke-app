@@ -349,6 +349,19 @@ function App() {
 
   }, [role, currentUser]);
 
+  useEffect(() => {
+  const fetchAnalytics = async () => {
+    try {
+      const res = await API.get("/analytics/overview");
+      setAnalytics(res.data);
+    } catch (err) {
+      console.log(err);
+    }
+  };
+
+  fetchAnalytics();
+}, []);
+
   /* ================= LOGIN ================= */
 
   if (!role) {
