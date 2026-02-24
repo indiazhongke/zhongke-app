@@ -1,7 +1,35 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { VitePWA } from "vite-plugin-pwa";
 
-// https://vite.dev/config/
 export default defineConfig({
-  plugins: [react()],
+  plugins: [
+    react(),
+    VitePWA({
+      registerType: "autoUpdate",
+      includeAssets: ["logox.png"],
+      manifest: {
+        name: "Zhongke India Taskflow Manager",
+        short_name: "Zhongke CRM",
+        description: "Internal Task Management CRM",
+        theme_color: "#1c7ab8",
+        background_color: "#ffffff",
+        display: "standalone",
+        orientation: "portrait",
+        start_url: "/",
+        icons: [
+          {
+            src: "/logox.png",
+            sizes: "192x192",
+            type: "image/png"
+          },
+          {
+            src: "/logox.png",
+            sizes: "512x512",
+            type: "image/png"
+          }
+        ]
+      }
+    })
+  ]
 });
