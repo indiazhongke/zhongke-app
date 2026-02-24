@@ -86,23 +86,23 @@ function App() {
   });
 
 
-  const addNotification = async (message, targetRole = "all") => {
-    try {
-      const res = await API.post("/notifications", {
-        message,
-        targetRole,
-        read: false
-      });
+ const addNotification = async (message, recipient) => {
+  try {
+    const res = await API.post("/notifications", {
+      message,
+      recipient
+    });
 
-      setNotifications(prev => [res.data, ...prev]);
+    setNotifications(prev => [res.data, ...prev]);
 
-      // 🔊 Sound
-      const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
-      audio.play().catch(() => { });
-    } catch (err) {
-      console.log("Notification error:", err.response?.data || err.message);
-    }
-  };
+    // 🔊 Sound
+    const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+    audio.play().catch(() => { });
+
+  } catch (err) {
+    console.log("Notification error:", err.response?.data || err.message);
+  }
+};
 
   const sendMessage = async (toUser, content) => {
     if (!content.trim()) return;
@@ -122,10 +122,10 @@ function App() {
       setMessages(prev => [...prev, res.data]);
 
       // 2️⃣ Save notification in backend
-      await API.post("/notifications", {
-        message: `New message from ${sender}`,
-        targetRole: "all"
-      });
+await API.post("/notifications", {
+  message: `New message from ${sender}`,
+  recipient: toUser
+});
 
       // 3️⃣ Refresh notifications
       const notifRes = await API.get("/notifications");
@@ -330,32 +330,24 @@ function App() {
     fetchReports();
   }, []);
 
-  useEffect(() => {
-    const fetchNotifications = async () => {
-      try {
-        const res = await API.get("/notifications");
-        setNotifications(res.data);
-      } catch (err) {
-        console.log(err);
-      }
-    };
+useEffect(() => {
+  const fetchNotifications = async () => {
+    try {
+      const user = role === "admin" ? "Admin" : currentUser?.name;
 
-    fetchNotifications();
-  }, []);
+      if (!user) return;
 
-  useEffect(() => {
-    const fetchAnalytics = async () => {
-      try {
-        const res = await API.get("/analytics/overview");
-        setAnalytics(res.data);
-      } catch (err) {
-        console.log(err);
-      }
-    };
+      const res = await API.get(`/notifications?user=${user}`);
+      setNotifications(res.data);
 
-    fetchAnalytics();
-  }, []);
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
+  fetchNotifications();
+
+}, [role, currentUser]);
 
   /* ================= LOGIN ================= */
 
@@ -633,7 +625,7 @@ function App() {
 
         {(role === "admin"
           ? ["dashboard", "tasks", "todos", "kanban", "users", "teams", "reports", "analytics", "notifications", "messages"]
-          : ["tasks", "todos", "messages"]
+          : ["tasks","todos","notifications","messages"]
         ).map(item => (
           <button
             key={item}
