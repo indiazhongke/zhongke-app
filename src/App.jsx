@@ -407,19 +407,19 @@ function App() {
           </button>
           <div className="space-y-3 mt-4">
 
-           <input
-  placeholder="Enter Name"
-  value={loginName}
-  onChange={(e) => setLoginName(e.target.value)}
-  className="w-full border p-2 rounded mb-3"
-/>
+            <input
+              placeholder="Enter Name"
+              value={loginName}
+              onChange={(e) => setLoginName(e.target.value)}
+              className="w-full border p-2 rounded mb-3"
+            />
 
-<input
-  placeholder="Enter Member ID (example: #sart9816)"
-  value={loginMemberId}
-  onChange={(e) => setLoginMemberId(e.target.value)}
-  className="w-full border p-2 rounded mb-4"
-/>
+            <input
+              placeholder="Enter Member ID (example: #sart9816)"
+              value={loginMemberId}
+              onChange={(e) => setLoginMemberId(e.target.value)}
+              className="w-full border p-2 rounded mb-4"
+            />
 
             <button
               onClick={async () => {
