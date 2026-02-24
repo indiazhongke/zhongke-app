@@ -6,16 +6,16 @@ const notificationSchema = new mongoose.Schema(
       type: String,
       required: true,
     },
-    targetRole: {
+    recipient: {
       type: String,
-      default: "all",
+      required: true, // 🔥 specific user
     },
     read: {
       type: Boolean,
       default: false,
     },
   },
-  { timestamps: true },
+  { timestamps: true }
 );
 
 module.exports = mongoose.model("Notification", notificationSchema);
