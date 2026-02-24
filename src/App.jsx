@@ -86,23 +86,23 @@ function App() {
   });
 
 
- const addNotification = async (message, recipient) => {
-  try {
-    const res = await API.post("/notifications", {
-      message,
-      recipient
-    });
+  const addNotification = async (message, recipient) => {
+    try {
+      const res = await API.post("/notifications", {
+        message,
+        recipient
+      });
 
-    setNotifications(prev => [res.data, ...prev]);
+      setNotifications(prev => [res.data, ...prev]);
 
-    // 🔊 Sound
-    const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
-    audio.play().catch(() => { });
+      // 🔊 Sound
+      const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+      audio.play().catch(() => { });
 
-  } catch (err) {
-    console.log("Notification error:", err.response?.data || err.message);
-  }
-};
+    } catch (err) {
+      console.log("Notification error:", err.response?.data || err.message);
+    }
+  };
 
   const sendMessage = async (toUser, content) => {
     if (!content.trim()) return;
@@ -122,10 +122,10 @@ function App() {
       setMessages(prev => [...prev, res.data]);
 
       // 2️⃣ Save notification in backend
-await API.post("/notifications", {
-  message: `New message from ${sender}`,
-  recipient: toUser
-});
+      await API.post("/notifications", {
+        message: `New message from ${sender}`,
+        recipient: toUser
+      });
 
       // 3️⃣ Refresh notifications
       const notifRes = await API.get("/notifications");
@@ -330,24 +330,24 @@ await API.post("/notifications", {
     fetchReports();
   }, []);
 
-useEffect(() => {
-  const fetchNotifications = async () => {
-    try {
-      const user = role === "admin" ? "Admin" : currentUser?.name;
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const user = role === "admin" ? "Admin" : currentUser?.name;
 
-      if (!user) return;
+        if (!user) return;
 
-      const res = await API.get(`/notifications?user=${user}`);
-      setNotifications(res.data);
+        const res = await API.get(`/notifications?user=${user}`);
+        setNotifications(res.data);
 
-    } catch (err) {
-      console.log(err);
-    }
-  };
+      } catch (err) {
+        console.log(err);
+      }
+    };
 
-  fetchNotifications();
+    fetchNotifications();
 
-}, [role, currentUser]);
+  }, [role, currentUser]);
 
   /* ================= LOGIN ================= */
 
@@ -625,7 +625,7 @@ useEffect(() => {
 
         {(role === "admin"
           ? ["dashboard", "tasks", "todos", "kanban", "users", "teams", "reports", "analytics", "notifications", "messages"]
-          : ["tasks","todos","notifications","messages"]
+          : ["tasks", "todos", "notifications", "messages"]
         ).map(item => (
           <button
             key={item}
@@ -666,7 +666,7 @@ useEffect(() => {
               await window.deferredPrompt.userChoice;
               window.deferredPrompt = null;
             }
-          }}className="mt-3 bg-[#1c7ab8] hover:bg-[#166a9d] text-white px-2 py-1 rounded text-xs w-auto transition"
+          }} className="mt-3 bg-[#1c7ab8] hover:bg-[#166a9d] text-white px-2 py-1 rounded text-xs w-auto transition"
         >
           Install App
         </button>
@@ -2013,53 +2013,65 @@ function MessagesPage({
   const groupByDate = groupMessagesByDate(visibleMessages);
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
+    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[75vh] relative">
       {/* Conversation List */}
-      <div className="bg-white p-4 rounded shadow md:col-span-2">
+      <div className="bg-white p-4 rounded shadow md:col-span-2 flex flex-col">
+
         <h3 className="font-bold mb-4">Inbox</h3>
 
-        {visibleMessages.length === 0 && (
-          <p className="text-gray-500">No messages yet</p>
-        )}
-        {Object.entries(groupByDate).map(([day, msgs]) => (
-          <div key={day} className="mb-4">
+        <div className="flex-1 overflow-y-auto pr-2 pb-40 md:pb-0">
 
-            <div
-              className="cursor-pointer font-bold bg-gray-200 px-3 py-2 rounded"
-              onClick={() => setOpenDay(openDay === day ? null : day)}
-            >
-              {day} ({msgs.length})
-            </div>
+          {visibleMessages.length === 0 && (
+            <p className="text-gray-500">No messages yet</p>
+          )}
 
-            {openDay === day && (
-              <div className="mt-2 space-y-2">
-                {msgs.map(msg => (
-                  <div
-                    key={msg._id}
-                    className={`p-3 rounded ${msg.from === me
-                      ? "bg-blue-100 text-right"
-                      : "bg-gray-100"
-                      }`}
-                  >
-                    <p className="text-sm font-semibold">
-                      {msg.from} → {msg.to}
-                    </p>
-                    <p>{msg.content}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {new Date(msg.createdAt).toLocaleTimeString()}
-                    </p>
-                  </div>
-                ))}
+          {Object.entries(groupByDate).map(([day, msgs]) => (
+            <div key={day} className="mb-4">
+
+              <div
+                className="cursor-pointer font-bold bg-gray-200 px-3 py-2 rounded"
+                onClick={() => setOpenDay(openDay === day ? null : day)}
+              >
+                {day} ({msgs.length})
               </div>
-            )}
 
-          </div>
-        ))}
+              {openDay === day && (
+                <div className="mt-2 space-y-2">
+                  {msgs.map(msg => (
+                    <div
+                      key={msg._id}
+                      className={`p-3 rounded ${msg.from === me
+                          ? "bg-blue-100 text-right"
+                          : "bg-gray-100"
+                        }`}
+                    >
+                      <p className="text-sm font-semibold">
+                        {msg.from} → {msg.to}
+                      </p>
+                      <p>{msg.content}</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {new Date(msg.createdAt).toLocaleTimeString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+            </div>
+          ))}
+
+        </div>
+
       </div>
 
+
+
       {/* Send Message */}
-      <div className="bg-white p-4 rounded shadow">
+      <div className="
+ bg-white p-4 rounded shadow
+  sticky bottom-0
+  md:static
+">
         <h3 className="font-bold mb-4">Send Message</h3>
 
         <select
