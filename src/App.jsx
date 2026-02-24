@@ -240,6 +240,7 @@ function App() {
       try {
         const res = await API.get("/tasks");
         setTasks(res.data);
+        console.log("LIVE TASKS:", res.data);
       } catch (err) {
         console.log("Error fetching tasks:", err.message);
         console.log("Make sure VITE_API_URL is set correctly for production");
