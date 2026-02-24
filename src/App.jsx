@@ -241,7 +241,8 @@ function App() {
         const res = await API.get("/tasks");
         setTasks(res.data);
       } catch (err) {
-        console.log(err);
+        console.log("Error fetching tasks:", err.message);
+        console.log("Make sure VITE_API_URL is set correctly for production");
       }
     };
 
@@ -393,10 +394,13 @@ function App() {
 
                 localStorage.setItem("token", res.data.token);
                 localStorage.setItem("role", "admin");
+                localStorage.setItem(
+                  "currentUser",
+                  JSON.stringify({ name: "Admin", role: "admin" })
+                );
 
                 setRole("admin");
-                setCurrentUser(res.data.user);
-
+                setCurrentUser({ name: "Admin", role: "admin" });
               } catch (err) {
                 alert("Invalid security key");
               }
@@ -651,6 +655,7 @@ function App() {
           onClick={() => {
             setRole(null);
             setCurrentUser(null);
+            localStorage.clear();
           }}
           className="mt-6 bg-gray-500 text-white px-4 py-2 rounded w-full"
         >
