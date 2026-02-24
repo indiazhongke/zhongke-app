@@ -137,7 +137,12 @@ function App() {
   };
 
 
-
+  useEffect(() => {
+    window.addEventListener("beforeinstallprompt", (e) => {
+      e.preventDefault();
+      window.deferredPrompt = e;
+    });
+  }, []);
 
   useEffect(() => {
     tasks
@@ -661,6 +666,17 @@ function App() {
           className="mt-6 bg-gray-500 text-white px-4 py-2 rounded w-full"
         >
           Logout
+        </button>
+        <button
+          onClick={async () => {
+            if (window.deferredPrompt) {
+              window.deferredPrompt.prompt();
+              await window.deferredPrompt.userChoice;
+              window.deferredPrompt = null;
+            }
+          }}className="mt-3 bg-[#1c7ab8] hover:bg-[#166a9d] text-white px-2 py-1 rounded text-xs w-auto transition"
+        >
+          Install App
         </button>
       </div>
       {showSidebar && (
