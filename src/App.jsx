@@ -14,12 +14,14 @@ import { CSS } from "@dnd-kit/utilities";
 import API from "./api/axios";
 
 
+
 /* ================= MAIN APP ================= */
 
 function App() {
   const [active, setActive] = useState(() => {
     return localStorage.getItem("activeTab") || "dashboard";
   });
+  const [showSidebar, setShowSidebar] = useState(false);
   const [tasks, setTasks] = useState([]);
   const [users, setUsers] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -37,7 +39,7 @@ function App() {
   const [messages, setMessages] = useState([]);
   const [showMemberModal, setShowMemberModal] = useState(false);
   const [taskSearch, setTaskSearch] = useState("");
-const [taskFilter, setTaskFilter] = useState("All");
+  const [taskFilter, setTaskFilter] = useState("All");
   const [memberForm, setMemberForm] = useState({
     name: "",
     phone: "",
@@ -354,17 +356,49 @@ const [taskFilter, setTaskFilter] = useState("All");
     return (
       <div className="h-screen flex items-center justify-center bg-gray-100">
         <div className="bg-white p-10 rounded-xl shadow-lg w-96">
-          <h2 className="text-2xl font-bold mb-6 text-center">Login</h2>
+          {/* Logo Section */}
+          <div className="flex flex-col items-center mb-8">
+            <img
+              src="/logox.png"
+              alt="Logo"
+              className="w-auto h-30"
+            />
+            <br />
+            <h1
+              className="text-3xl font-bold text-center"
+              style={{ color: "#1c7ab8" }}
+            >
+
+              Zhongke India
+            </h1>
+
+            <p
+              className="text-sm font-medium mt-1"
+              style={{ color: "#545454" }}
+            >
+              Taskflow <span style={{ color: "#3fb14e" }}>Manager</span>
+            </p>
+          </div>
+
 
           <button
-            onClick={() => {
-              const pass = prompt("Enter Admin Password");
+            onClick={async () => {
+              const key = prompt("Enter Admin Security Key");
+              if (!key) return;
 
-              if (pass === "1234") {
-                setRole("admin");
+              try {
+                const res = await API.post("/auth/admin-login", {
+                  securityKey: key,
+                });
+
+                localStorage.setItem("token", res.data.token);
                 localStorage.setItem("role", "admin");
-              } else {
-                alert("Wrong password");
+
+                setRole("admin");
+                setCurrentUser(res.data.user);
+
+              } catch (err) {
+                alert("Invalid security key");
               }
             }}
             className="w-full bg-blue-600 text-white py-2 rounded mb-4"
@@ -373,48 +407,45 @@ const [taskFilter, setTaskFilter] = useState("All");
           </button>
           <div className="space-y-3 mt-4">
 
-            <input
-              placeholder="Enter Name"
-              value={loginName}
-              onChange={(e) => setLoginName(e.target.value)}
-              className="w-full border p-2 rounded"
-            />
+           <input
+  placeholder="Enter Name"
+  value={loginName}
+  onChange={(e) => setLoginName(e.target.value)}
+  className="w-full border p-2 rounded mb-3"
+/>
 
-            <input
-              placeholder="Enter Unique Member ID"
-              value={loginMemberId}
-              onChange={(e) => setLoginMemberId(e.target.value)}
-              className="w-full border p-2 rounded"
-            />
+<input
+  placeholder="Enter Member ID (example: #sart9816)"
+  value={loginMemberId}
+  onChange={(e) => setLoginMemberId(e.target.value)}
+  className="w-full border p-2 rounded mb-4"
+/>
 
             <button
-              onClick={() => {
-                const user = users.find(
-                  u => u.name === loginName && u.memberId === loginMemberId
-                );
+              onClick={async () => {
+                try {
+                  const res = await API.post("/auth/member-login", {
+                    name: loginName.trim(),
+                    memberId: loginMemberId.trim().toLowerCase()
+                  });
 
-                if (user) {
-                  setRole("member");
-                  setCurrentUser(user);
-                  setActive("tasks");
+                  localStorage.setItem("token", res.data.token);
                   localStorage.setItem("role", "member");
-                  localStorage.setItem("currentUser", JSON.stringify(user));
-                  localStorage.setItem("activeTab", "tasks");
-                }
+                  localStorage.setItem("currentUser", JSON.stringify(res.data.user));
 
-                else {
-                  alert("Invalid credentials");
+                  setRole("member");
+                  setCurrentUser(res.data.user);
+                  setActive("tasks");
+
+                } catch (err) {
+                  alert(err.response?.data?.error || "Invalid credentials");
                 }
               }}
               className="w-full bg-green-600 text-white py-2 rounded"
             >
               Login as Member
             </button>
-
           </div>
-
-
-
         </div>
       </div>
     );
@@ -432,13 +463,13 @@ const [taskFilter, setTaskFilter] = useState("All");
     role === "admin"
       ? safeTasks
       : safeTasks.filter(t => t.assignedUser === currentUser?.name);
-      const visibleFilteredTasks = filteredTasks
-  .filter(task =>
-    task.title.toLowerCase().includes(taskSearch.toLowerCase())
-  )
-  .filter(task =>
-    taskFilter === "All" ? true : task.status === taskFilter
-  );
+  const visibleFilteredTasks = filteredTasks
+    .filter(task =>
+      task.title.toLowerCase().includes(taskSearch.toLowerCase())
+    )
+    .filter(task =>
+      taskFilter === "All" ? true : task.status === taskFilter
+    );
 
   const pending = safeTasks.filter(t => t.status === "Pending").length;
 
@@ -516,41 +547,41 @@ const [taskFilter, setTaskFilter] = useState("All");
     }
   };
 
-const groupTasksByDate = (tasks) => {
-  const groups = {};
+  const groupTasksByDate = (tasks) => {
+    const groups = {};
 
-  tasks.forEach((task) => {
-    const dateObj = new Date(task.createdAt);
-    const today = new Date();
+    tasks.forEach((task) => {
+      const dateObj = new Date(task.createdAt);
+      const today = new Date();
 
-    let label;
+      let label;
 
-    if (dateObj.toDateString() === today.toDateString()) {
-      label = "Today";
-    } else {
-      const yesterday = new Date();
-      yesterday.setDate(today.getDate() - 1);
-
-      if (dateObj.toDateString() === yesterday.toDateString()) {
-        label = "Yesterday";
+      if (dateObj.toDateString() === today.toDateString()) {
+        label = "Today";
       } else {
-        label = dateObj.toDateString();
+        const yesterday = new Date();
+        yesterday.setDate(today.getDate() - 1);
+
+        if (dateObj.toDateString() === yesterday.toDateString()) {
+          label = "Yesterday";
+        } else {
+          label = dateObj.toDateString();
+        }
       }
-    }
 
-    if (!groups[label]) groups[label] = [];
-    groups[label].push(task);
-  });
+      if (!groups[label]) groups[label] = [];
+      groups[label].push(task);
+    });
 
-  return groups;
-};
+    return groups;
+  };
 
 
 
   /* ================= RENDER ================= */
 
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-100 overflow-hidden">
 
       {toast && (
         <div className="fixed top-5 right-5 bg-black text-white px-4 py-2 rounded shadow">
@@ -559,25 +590,50 @@ const groupTasksByDate = (tasks) => {
       )}
 
       {/* SIDEBAR */}
-      <div className="w-64 bg-white shadow-xl p-6">
-        <div className="flex items-center gap-3 mb-8">
+      <div
+        className={`
+    fixed md:static
+    top-0 left-0 h-full
+    w-64
+    bg-white
+    shadow-xl
+    p-6
+    z-50
+    transform
+    ${showSidebar ? "translate-x-0" : "-translate-x-full"}
+    md:translate-x-0
+    transition-transform duration-300
+  `}
+      >
+        <div className="flex items-center justify-between mb-8">
           <img
             src="/logox.png"
             alt="Logo"
-            className="h-8 w-auto"
+            className="h-12 w-auto"
           />
-        </div>
 
+          {/* Close button (mobile only) */}
+          <button
+            className="md:hidden text-xl"
+            onClick={() => setShowSidebar(false)}
+          >
+            ✕
+          </button>
+        </div>
 
         {(role === "admin"
           ? ["dashboard", "tasks", "todos", "kanban", "users", "teams", "reports", "analytics", "notifications", "messages"]
           : ["tasks", "todos", "messages"]
-
         ).map(item => (
           <button
             key={item}
-            onClick={() => setActive(item)}
-            className={`block w-full text-left px-4 py-2 mb-2 rounded capitalize flex justify-between ${active === item ? "bg-blue-600 text-white" : "hover:bg-gray-200"
+            onClick={() => {
+              setActive(item);
+              setShowSidebar(false); // close on mobile click
+            }}
+            className={`block w-full text-left px-4 py-2 mb-2 rounded capitalize flex justify-between transition ${active === item
+              ? "bg-blue-600 text-white"
+              : "hover:bg-gray-200"
               }`}
           >
             <span>{item}</span>
@@ -589,7 +645,6 @@ const groupTasksByDate = (tasks) => {
                 </span>
               )}
           </button>
-
         ))}
 
         <button
@@ -597,642 +652,660 @@ const groupTasksByDate = (tasks) => {
             setRole(null);
             setCurrentUser(null);
           }}
-          className="mt-6 bg-gray-500 text-white px-4 py-2 rounded"
+          className="mt-6 bg-gray-500 text-white px-4 py-2 rounded w-full"
         >
           Logout
         </button>
       </div>
-
+      {showSidebar && (
+        <div
+          className="fixed inset-0 bg-black bg-opacity-30 z-40 md:hidden"
+          onClick={() => setShowSidebar(false)}
+        />
+      )}
       {/* MAIN */}
-      <div className="flex-1 p-8 overflow-auto">
-        {active === "notifications" && (
-          <div className="space-y-4">
-            <div className="flex justify-between items-center">
-              <h2 className="text-xl font-bold">Notifications</h2>
-              <button
-                onClick={async () => {
-                  await API.delete("/notifications");
-                  setNotifications([]);
-                }}
-
-                className="bg-red-600 text-white px-3 py-1 rounded text-sm"
-              >
-                Clear All
-              </button>
-            </div>
-
-            {notifications.length === 0 && (
-              <p className="text-gray-500">No notifications</p>
-            )}
-
-            {notifications.map(n => (
-              <div
-                key={n._id}
-                className={`p-4 rounded shadow ${n.read ? "bg-white" : "bg-blue-50 border-l-4 border-blue-600"
-                  }`}
-                onClick={async () => {
-                  await API.put(`/notifications/${n._id}`);
-                  setNotifications(prev =>
-                    prev.map(item =>
-                      item._id === n._id ? { ...item, read: true } : item
-                    )
-                  );
-                }}
-              >
-                <p className="font-medium">{n.message}</p>
-                <p className="text-sm text-gray-500">{n.date}</p>
-              </div>
-            ))}
-          </div>
-        )}
-        {active === "messages" && (
-          <MessagesPage
-            role={role}
-            currentUser={currentUser}
-            users={users}
-            messages={messages}
-            sendMessage={sendMessage}
-          />
-        )}
-
-        {showMemberModal && (
-          <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
-            <div className="bg-white p-6 rounded w-96 space-y-4">
-
-              <h2 className="text-xl font-bold">Add Member</h2>
-
-              <input
-                placeholder="Full Name"
-                value={memberForm.name}
-                onChange={e =>
-                  setMemberForm({ ...memberForm, name: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-              />
-
-              <input
-                placeholder="Phone Number (with country code)"
-                value={memberForm.phone}
-                onChange={e =>
-                  setMemberForm({ ...memberForm, phone: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-              />
-
-              <input
-                placeholder="Unique Member ID"
-                value={memberForm.memberId}
-                onChange={e =>
-                  setMemberForm({ ...memberForm, memberId: e.target.value })
-                }
-                className="w-full border p-2 rounded"
-              />
-
-              <div className="flex gap-3">
+      <div className="md:hidden flex items-center justify-between p-4 bg-white shadow">
+        <button
+          onClick={() => setShowSidebar(true)}
+          className="text-2xl"
+        >
+          ☰
+        </button>
+      </div>
+      <div className="p-6 md:p-10 overflow-auto flex-1 bg-gray-50">
+        <div className="max-w-6xl mx-auto">
+          {active === "notifications" && (
+            <div className="space-y-4">
+              <div className="flex justify-between items-center">
+                <h2 className="text-xl font-bold">Notifications</h2>
                 <button
-                  onClick={() => setShowMemberModal(false)}
-                  className="flex-1 border py-2 rounded"
+                  onClick={async () => {
+                    await API.delete("/notifications");
+                    setNotifications([]);
+                  }}
+
+                  className="bg-red-600 text-white px-3 py-1 rounded text-sm"
                 >
-                  Cancel
+                  Clear All
+                </button>
+              </div>
+
+              {notifications.length === 0 && (
+                <p className="text-gray-500">No notifications</p>
+              )}
+
+              {notifications.map(n => (
+                <div
+                  key={n._id}
+                  className={`p-4 rounded shadow ${n.read ? "bg-white" : "bg-blue-50 border-l-4 border-blue-600"
+                    }`}
+                  onClick={async () => {
+                    await API.put(`/notifications/${n._id}`);
+                    setNotifications(prev =>
+                      prev.map(item =>
+                        item._id === n._id ? { ...item, read: true } : item
+                      )
+                    );
+                  }}
+                >
+                  <p className="font-medium">{n.message}</p>
+                  <p className="text-sm text-gray-500">{n.date}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {active === "messages" && (
+            <MessagesPage
+              role={role}
+              currentUser={currentUser}
+              users={users}
+              messages={messages}
+              sendMessage={sendMessage}
+            />
+          )}
+
+          {showMemberModal && (
+            <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
+              <div className="bg-white p-6 rounded w-96 space-y-4">
+
+                <h2 className="text-xl font-bold">Add Member</h2>
+
+                <input
+                  placeholder="Full Name"
+                  value={memberForm.name}
+                  onChange={e =>
+                    setMemberForm({ ...memberForm, name: e.target.value })
+                  }
+                  className="w-full border p-2 rounded"
+                />
+
+                <input
+                  placeholder="Phone Number (with country code)"
+                  value={memberForm.phone}
+                  onChange={e =>
+                    setMemberForm({ ...memberForm, phone: e.target.value })
+                  }
+                  className="w-full border p-2 rounded"
+                />
+
+                <input
+                  placeholder="Unique Member ID"
+                  value={memberForm.memberId}
+                  onChange={e =>
+                    setMemberForm({ ...memberForm, memberId: e.target.value })
+                  }
+                  className="w-full border p-2 rounded"
+                />
+
+                <div className="flex gap-3">
+                  <button
+                    onClick={() => setShowMemberModal(false)}
+                    className="flex-1 border py-2 rounded"
+                  >
+                    Cancel
+                  </button>
+
+                  <button
+                    onClick={async () => {
+                      if (!memberForm.name || !memberForm.phone || !memberForm.memberId) {
+                        alert("All fields required");
+                        return;
+                      }
+
+                      try {
+                        const res = await API.post("/users", memberForm);
+
+                        setUsers(prev => [...prev, res.data]);
+
+                        setMemberForm({
+                          name: "",
+                          phone: "",
+                          memberId: ""
+                        });
+
+                        setShowMemberModal(false);
+                        showMessage("User Added Successfully");
+
+                      } catch (error) {
+                        console.log(error.response?.data);
+                        alert(error.response?.data?.error || "Error adding user");
+                      }
+                    }}
+
+                    className="flex-1 bg-blue-600 text-white py-2 rounded"
+                  >
+                    Add Member
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {active === "todos" && (
+            <div className="space-y-4">
+
+              {filteredTodos.map(todo => (
+
+                <div key={todo._id} className="bg-white p-4 rounded shadow">
+
+                  <h3 className="font-semibold">{todo.title}</h3>
+                  <p>Status: <b>{todo.status}</b></p>
+                  {todo.note && <p className="text-sm text-gray-500">Note: {todo.note}</p>}
+
+                  <div className="flex flex-wrap gap-2 mt-3">
+
+                    <button
+                      onClick={() => updateTodoStatus(todo._id, "Done")}
+                      className="bg-green-600 text-white px-3 py-1 rounded"
+                    >
+                      Done
+                    </button>
+
+                    <button
+                      onClick={() => updateTodoStatus(todo._id, "Not Done")}
+                      className="bg-yellow-500 text-white px-3 py-1 rounded"
+                    >
+                      Not Done
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        const note = prompt("Add note");
+                        if (!note) return;
+                        setTodos(prev =>
+                          prev.map(t =>
+                            t._id === todo._id ? { ...t, note } : t
+                          )
+                        );
+                      }}
+                      className="bg-purple-600 text-white px-3 py-1 rounded"
+                    >
+                      Add Note
+                    </button>
+
+                    <button
+                      onClick={() => editTodo(todo._id)}
+                      className="bg-blue-600 text-white px-3 py-1 rounded"
+                    >
+                      Edit
+                    </button>
+
+                    <button
+                      onClick={() => deleteTodo(todo._id)}
+                      className="bg-red-600 text-white px-3 py-1 rounded"
+                    >
+                      Delete
+                    </button>
+
+                  </div>
+
+                </div>
+              ))}
+
+              <div className="flex flex-wrap gap-3 mb-6">
+
+                <button
+                  onClick={() => setShowTodoModal(true)}
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
+                >
+                  + Add Todo
+                </button>
+
+                <button
+                  onClick={() => {
+                    const headers = "Todo,Status\n";
+                    const rows = filteredTodos
+                      .map(t => `${t.title},${t.status}`)
+                      .join("\n");
+
+                    const link = document.createElement("a");
+                    link.href = encodeURI(
+                      "data:text/csv;charset=utf-8," + headers + rows
+                    );
+                    link.download = "todo_report.csv";
+                    link.click();
+                  }}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow"
+                >
+                  Export Excel
+                </button>
+
+                <button
+                  onClick={() => {
+                    const text = filteredTodos
+                      .map(t => `• ${t.title} - ${t.status}`)
+                      .join("%0A");
+
+                    window.open(
+                      `https://wa.me/?text=Todo List%0A${text}`
+                    );
+                  }}
+                  className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow"
+                >
+                  Share on WhatsApp
                 </button>
 
                 <button
                   onClick={async () => {
-                    if (!memberForm.name || !memberForm.phone || !memberForm.memberId) {
-                      alert("All fields required");
-                      return;
-                    }
+                    const today = new Date().toLocaleDateString();
+
+                    const reportData = {
+                      id: Date.now(),
+                      user: role === "admin" ? "Admin" : currentUser.name,
+                      date: today,
+                      tasks: filteredTodos.map(
+                        t => `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`
+                      ),
+                      type: "todo"
+                    };
 
                     try {
-                      const res = await API.post("/users", memberForm);
-
-                      setUsers(prev => [...prev, res.data]);
-
-                      setMemberForm({
-                        name: "",
-                        phone: "",
-                        memberId: ""
-                      });
-
-                      setShowMemberModal(false);
-                      showMessage("User Added Successfully");
-
-                    } catch (error) {
-                      console.log(error.response?.data);
-                      alert(error.response?.data?.error || "Error adding user");
+                      const res = await API.post("/reports", reportData);
+                      setReports(prev => [res.data, ...prev]);
+                      alert("Todo Report Submitted");
+                    } catch (err) {
+                      console.log(err);
                     }
+
+
+                    alert("Todo Report Submitted");
                   }}
-
-                  className="flex-1 bg-blue-600 text-white py-2 rounded"
+                  className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
                 >
-                  Add Member
+                  Submit Report
                 </button>
+
               </div>
+
+
+
             </div>
-          </div>
-        )}
+          )}
 
-        {active === "todos" && (
-          <div className="space-y-4">
+          {/* DASHBOARD */}
+          {active === "dashboard" && role === "admin" && (
+            <>
+              <div className="grid grid-cols-3 gap-6 mb-8">
+                <StatCard title="Pending" value={analytics.pending} />
+                <StatCard title="In Progress" value={analytics.progress} />
+                <StatCard title="Completed" value={analytics.completed} />
+                <StatCard title="Overdue" value={analytics.overdue} />
+              </div>
 
-            {filteredTodos.map(todo => (
+              <div className="grid grid-cols-2 gap-8">
+                <ChartBox>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <PieChart>
+                      <Pie
+                        data={[
+                          { name: "Pending", value: pending },
+                          { name: "Progress", value: progress },
+                          { name: "Completed", value: completed }
+                        ]}
+                        dataKey="value"
+                        outerRadius={100}
+                      >
+                        <Cell fill="#505050" />
+                        <Cell fill="#0072b4" />
+                        <Cell fill="#3aad49" />
+                      </Pie>
+                      <Tooltip />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </ChartBox>
 
-              <div key={todo._id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
+                <ChartBox>
+                  <ResponsiveContainer width="100%" height={300}>
+                    <BarChart data={tasks.map(t => ({ name: t.title, val: 1 }))}>
+                      <XAxis dataKey="name" hide />
+                      <YAxis />
+                      <Tooltip />
+                      <Bar dataKey="val" fill="#0072b4" />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </ChartBox>
+              </div>
+            </>
+          )}
 
-                <h3 className="font-semibold">{todo.title}</h3>
-                <p>Status: <b>{todo.status}</b></p>
-                {todo.note && <p className="text-sm text-gray-500">Note: {todo.note}</p>}
+          {/* USERS */}
+          {active === "users" && role === "admin" && (
+            <div>
 
-                <div className="flex flex-wrap gap-2 mt-3">
+              <button
+                onClick={() => setShowMemberModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded mb-4"
+              >
+                + Add Member
+              </button>
+
+              {users.length === 0 && (
+                <p className="text-gray-500">No members added yet</p>
+              )}
+
+              {users.map(user => (
+                <div key={user._id} className="bg-white p-4 rounded shadow mb-3 flex justify-between items-center">
+                  <div>
+                    <p className="font-semibold">{user.name}</p>
+                    <p className="text-sm text-gray-500">Member ID: {user.memberId}</p>
+                    <p className="text-sm text-gray-500">Phone: {user.phone}</p>
+                  </div>
 
                   <button
-                    onClick={() => updateTodoStatus(todo._id, "Done")}
-                    className="bg-green-600 text-white px-3 py-1 rounded"
+                    onClick={async () => {
+                      await API.delete(`/users/${user._id}`);
+                      setUsers(prev => prev.filter(u => u._id !== user._id));
+                    }}
+                    className="bg-red-600 text-white px-3 py-1 rounded"
                   >
-                    Done
+                    Remove
                   </button>
+                </div>
+              ))}
+
+            </div>
+          )}
+
+
+          {/* TEAMS */}
+          {active === "teams" && role === "admin" && (
+            <div className="space-y-4">
+
+              {/* OPEN MODAL BUTTON */}
+              <button
+                onClick={() => setShowTeamModal(true)}
+                className="bg-blue-600 text-white px-4 py-2 rounded"
+              >
+                + Create Team
+              </button>
+
+
+              {teams.length === 0 && (
+                <p className="text-gray-500">No teams created yet</p>
+              )}
+
+              {teams.map(team => (
+                <div key={team._id} className="bg-white p-4 rounded shadow">
+                  <h3 className="font-semibold text-lg">{team.name}</h3>
+                  <p className="text-sm text-gray-500">Work: {team.work}</p>
+
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    {team.members?.map((m, i) => (
+                      <span
+                        key={i}
+                        className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"
+                      >
+                        {m}
+                      </span>
+                    ))}
+                  </div>
 
                   <button
-                    onClick={() => updateTodoStatus(todo._id, "Not Done")}
-                    className="bg-yellow-500 text-white px-3 py-1 rounded"
-                  >
-                    Not Done
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      const note = prompt("Add note");
-                      if (!note) return;
-                      setTodos(prev =>
-                        prev.map(t =>
-                          t._id === todo._id ? { ...t, note } : t
-                        )
+                    onClick={async () => {
+                      await API.delete(`/teams/${team._id}`);
+                      setTeams(prev =>
+                        prev.filter(t => t._id !== team._id)
                       );
                     }}
-                    className="bg-purple-600 text-white px-3 py-1 rounded"
-                  >
-                    Add Note
-                  </button>
-
-                  <button
-                    onClick={() => editTodo(todo._id)}
-                    className="bg-blue-600 text-white px-3 py-1 rounded"
-                  >
-                    Edit
-                  </button>
-
-                  <button
-                    onClick={() => deleteTodo(todo._id)}
-                    className="bg-red-600 text-white px-3 py-1 rounded"
+                    className="mt-3 bg-red-600 text-white px-3 py-1 rounded text-sm"
                   >
                     Delete
                   </button>
-
                 </div>
-
-              </div>
-            ))}
-
-            <div className="flex flex-wrap gap-3 mb-6">
-
-              <button
-                onClick={() => setShowTodoModal(true)}
-                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
-              >
-                + Add Todo
-              </button>
-
-              <button
-                onClick={() => {
-                  const headers = "Todo,Status\n";
-                  const rows = filteredTodos
-                    .map(t => `${t.title},${t.status}`)
-                    .join("\n");
-
-                  const link = document.createElement("a");
-                  link.href = encodeURI(
-                    "data:text/csv;charset=utf-8," + headers + rows
-                  );
-                  link.download = "todo_report.csv";
-                  link.click();
-                }}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg shadow"
-              >
-                Export Excel
-              </button>
-
-              <button
-                onClick={() => {
-                  const text = filteredTodos
-                    .map(t => `• ${t.title} - ${t.status}`)
-                    .join("%0A");
-
-                  window.open(
-                    `https://wa.me/?text=Todo List%0A${text}`
-                  );
-                }}
-                className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow"
-              >
-                Share on WhatsApp
-              </button>
-
-              <button
-                onClick={async () => {
-                  const today = new Date().toLocaleDateString();
-
-                  const reportData = {
-                    id: Date.now(),
-                    user: role === "admin" ? "Admin" : currentUser.name,
-                    date: today,
-                    tasks: filteredTodos.map(
-                      t => `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`
-                    ),
-                    type: "todo"
-                  };
-
-                  try {
-                    const res = await API.post("/reports", reportData);
-                    setReports(prev => [res.data, ...prev]);
-                    alert("Todo Report Submitted");
-                  } catch (err) {
-                    console.log(err);
-                  }
-
-
-                  alert("Todo Report Submitted");
-                }}
-                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
-              >
-                Submit Report
-              </button>
-
-            </div>
-
-
-
-          </div>
-        )}
-
-        {/* DASHBOARD */}
-        {active === "dashboard" && role === "admin" && (
-          <>
-            <div className="grid grid-cols-3 gap-6 mb-8">
-              <StatCard title="Pending" value={analytics.pending} />
-              <StatCard title="In Progress" value={analytics.progress} />
-              <StatCard title="Completed" value={analytics.completed} />
-              <StatCard title="Overdue" value={analytics.overdue} />
-            </div>
-
-            <div className="grid grid-cols-2 gap-8">
-              <ChartBox>
-                <ResponsiveContainer width="100%" height={300}>
-                  <PieChart>
-                    <Pie
-                      data={[
-                        { name: "Pending", value: pending },
-                        { name: "Progress", value: progress },
-                        { name: "Completed", value: completed }
-                      ]}
-                      dataKey="value"
-                      outerRadius={100}
-                    >
-                      <Cell fill="#505050" />
-                      <Cell fill="#0072b4" />
-                      <Cell fill="#3aad49" />
-                    </Pie>
-                    <Tooltip />
-                  </PieChart>
-                </ResponsiveContainer>
-              </ChartBox>
-
-              <ChartBox>
-                <ResponsiveContainer width="100%" height={300}>
-                  <BarChart data={tasks.map(t => ({ name: t.title, val: 1 }))}>
-                    <XAxis dataKey="name" hide />
-                    <YAxis />
-                    <Tooltip />
-                    <Bar dataKey="val" fill="#0072b4" />
-                  </BarChart>
-                </ResponsiveContainer>
-              </ChartBox>
-            </div>
-          </>
-        )}
-
-        {/* USERS */}
-        {active === "users" && role === "admin" && (
-          <div>
-
-            <button
-              onClick={() => setShowMemberModal(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded mb-4"
-            >
-              + Add Member
-            </button>
-
-            {users.length === 0 && (
-              <p className="text-gray-500">No members added yet</p>
-            )}
-
-            {users.map(user => (
-              <div key={user._id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition mb-3 flex justify-between items-center">
-                <div>
-                  <p className="font-semibold">{user.name}</p>
-                  <p className="text-sm text-gray-500">Member ID: {user.memberId}</p>
-                  <p className="text-sm text-gray-500">Phone: {user.phone}</p>
-                </div>
-
-                <button
-                  onClick={async () => {
-                    await API.delete(`/users/${user._id}`);
-                    setUsers(prev => prev.filter(u => u._id !== user._id));
-                  }}
-                  className="bg-red-600 text-white px-3 py-1 rounded"
-                >
-                  Remove
-                </button>
-              </div>
-            ))}
-
-          </div>
-        )}
-
-
-        {/* TEAMS */}
-        {active === "teams" && role === "admin" && (
-          <div className="space-y-4">
-
-            {/* OPEN MODAL BUTTON */}
-            <button
-              onClick={() => setShowTeamModal(true)}
-              className="bg-blue-600 text-white px-4 py-2 rounded"
-            >
-              + Create Team
-            </button>
-
-
-            {teams.length === 0 && (
-              <p className="text-gray-500">No teams created yet</p>
-            )}
-
-            {teams.map(team => (
-              <div key={team._id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
-                <h3 className="font-semibold text-lg">{team.name}</h3>
-                <p className="text-sm text-gray-500">Work: {team.work}</p>
-
-                <div className="flex flex-wrap gap-2 mt-2">
-                  {team.members?.map((m, i) => (
-                    <span
-                      key={i}
-                      className="bg-blue-100 text-blue-700 px-2 py-1 rounded text-xs"
-                    >
-                      {m}
-                    </span>
-                  ))}
-                </div>
-
-                <button
-                  onClick={async () => {
-                    await API.delete(`/teams/${team._id}`);
-                    setTeams(prev =>
-                      prev.filter(t => t._id !== team._id)
-                    );
-                  }}
-                  className="mt-3 bg-red-600 text-white px-3 py-1 rounded text-sm"
-                >
-                  Delete
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-
-
-
-        {/* TASKS */}
-        {active === "tasks" && (
-  <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-2">
-    <div className="flex gap-3 flex-wrap mb-4">
-  <input
-    type="text"
-    placeholder="Search task..."
-    value={taskSearch}
-    onChange={(e) => setTaskSearch(e.target.value)}
-    className="border p-2 rounded w-60"
-  />
-
-  <select
-    value={taskFilter}
-    onChange={(e) => setTaskFilter(e.target.value)}
-    className="border p-2 rounded"
-  >
-    <option value="All">All</option>
-    <option value="Pending">Pending</option>
-    <option value="In Progress">In Progress</option>
-    <option value="Completed">Completed</option>
-  </select>
-</div>
-            {role === "member" && (
-              <div className="mb-4 bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
-                <h3 className="font-semibold mb-2">My Teams</h3>
-
-                <div className="flex flex-wrap gap-2">
-                  {teams
-                    .filter(team => team.members.includes(currentUser.name))
-                    .map(team => (
-                      <span
-                        key={team._id}
-                        className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
-                      >
-                        {team.name}
-                      </span>
-                    ))}
-                </div>
-              </div>
-            )}
-
-
-            {visibleFilteredTasks
-              .filter(t => t && t._id)
-              .map(task => (
-                <TaskCard
-                  key={task._id}
-                  task={task}
-                  role={role}
-                  updateStatus={updateStatus}
-                  deleteTask={deleteTask}
-                  setTasks={setTasks}
-                  showMessage={showMessage}
-                  users={users}
-                />
               ))}
+            </div>
+          )}
 
-            {role === "admin" && (
-              <div className="sticky bottom-0 bg-gray-100 py-4">
-                <button
-                  onClick={() => setShowModal(true)}
-                  className="bg-blue-600 text-white px-6 py-3 rounded shadow-lg"
+
+
+          {/* TASKS */}
+          {active === "tasks" && (
+            <div className="flex flex-col h-full">
+              <div className="flex gap-3 flex-wrap mb-4">
+                <input
+                  type="text"
+                  placeholder="Search task..."
+                  value={taskSearch}
+                  onChange={(e) => setTaskSearch(e.target.value)}
+                  className="border p-2 rounded w-60"
+                />
+
+                <select
+                  value={taskFilter}
+                  onChange={(e) => setTaskFilter(e.target.value)}
+                  className="border p-2 rounded"
                 >
-                  + Create Task
-                </button>
+                  <option value="All">All</option>
+                  <option value="Pending">Pending</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Completed">Completed</option>
+                </select>
               </div>
-            )}
+              {role === "member" && (
+                <div className="mb-4 bg-white p-4 rounded shadow">
+                  <h3 className="font-semibold mb-2">My Teams</h3>
 
-            {role === "member" && (
-              <MemberButtons
-                filteredTasks={filteredTasks}
-                currentUser={currentUser}
-                setReports={setReports}
-                addNotification={addNotification}
-              />
-            )}
-          </div>
-        )}
-
-        {/* REPORTS */}
-        {active === "reports" && role === "admin" && (
-          <div className="space-y-6">
-
-            {Object.entries(
-              reports.reduce((acc, report) => {
-                if (!acc[report.date]) acc[report.date] = [];
-                acc[report.date].push(report);
-                return acc;
-              }, {})
-            ).map(([date, dailyReports]) => (
-
-              <details key={date} className="bg-white rounded shadow p-4">
-                <summary className="font-bold text-lg cursor-pointer">
-                  📅 {date}
-                </summary>
-
-                <div className="mt-4 space-y-4">
-                  {dailyReports.map(r => (
-                    <div key={r._id} className="border p-3 rounded">
-
-                      <h3 className="font-semibold">
-                        {r.user} ({r.type === "task" ? "Task Report" : "Todo Report"})
-                      </h3>
-
-                      {r.tasks.map((t, i) => (
-                        <p key={i} className="text-sm">• {t}</p>
+                  <div className="flex flex-wrap gap-2">
+                    {teams
+                      .filter(team => team.members.includes(currentUser.name))
+                      .map(team => (
+                        <span
+                          key={team._id}
+                          className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
+                        >
+                          {team.name}
+                        </span>
                       ))}
-
-                    </div>
-                  ))}
-                </div>
-
-              </details>
-            ))}
-
-          </div>
-        )}
-
-
-        {/* ANALYTICS */}
-        {active === "analytics" && role === "admin" && (
-          <div className="space-y-4">
-            {users.map(user => {
-              const userTasks = tasks.filter(t => t.assignedUser === user.name);
-              const done = userTasks.filter(t => t.status === "Completed").length;
-              const rate = userTasks.length
-                ? Math.round((done / userTasks.length) * 100)
-                : 0;
-
-              return (
-                <div key={user._id} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
-                  <h3>{user.name}</h3>
-                  <p>Total: {userTasks.length} | Done: {done}</p>
-                  <div className="w-full bg-gray-200 h-3 rounded mt-2">
-                    <div
-                      className="bg-green-600 h-3 rounded"
-                      style={{ width: `${rate}%` }}
-                    />
                   </div>
                 </div>
-              );
-            })}
-          </div>
-        )}
+              )}
 
-        {/* KANBAN */}
-        {active === "kanban" && role === "admin" && (
-          <DndContext
-            collisionDetection={closestCorners}
-            onDragEnd={async (event) => {
-              const { active, over } = event;
-              if (!over) return;
 
-              try {
-                const res = await API.put(`/tasks/${active.id}/status`, {
-                  status: over.id
-                });
+              <div className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-lg border border-gray-100 transition-all duration-200">
+                {visibleFilteredTasks
+                  .filter(t => t && t.id)
+                  .map(task => (
+                    <TaskCard
+                      key={task.id}
+                      task={task}
+                      role={role}
+                      updateStatus={updateStatus}
+                      deleteTask={deleteTask}
+                      setTasks={setTasks}
+                      showMessage={showMessage}
+                      users={users}
+                    />
+                  ))}
+              </div>
 
-                setTasks(prev =>
-                  prev.map(t =>
-                    t._id === active.id ? { ...res.data } : t
-                  )
-                );
+              {role === "admin" && (
+                <div className="border-t bg-white p-4">
+                  <button
+                    onClick={() => setShowModal(true)}
+                    className="bg-blue-600 text-white px-6 py-3 rounded shadow-lg"
+                  >
+                    + Create Task
+                  </button>
+                </div>
+              )}
 
-              } catch (err) {
-                console.log(err);
-              }
-            }}
-
-          >
-            <div className="grid grid-cols-3 gap-6">
-              {["Pending", "In Progress", "Completed"].map(status => (
-                <KanbanColumn
-                  key={status}
-                  id={status}
-                  tasks={safeTasks.filter(t => t.status === status)}
+              {role === "member" && (
+                <MemberButtons
+                  filteredTasks={filteredTasks}
+                  currentUser={currentUser}
+                  setReports={setReports}
+                  addNotification={addNotification}
                 />
-              ))}
+              )}
             </div>
-          </DndContext>
-        )}
+          )}
 
-      </div>
+          {/* REPORTS */}
+          {active === "reports" && role === "admin" && (
+            <div className="space-y-6">
 
-      {/* MODAL */}
-      {
-        showModal && (
-          <TaskModal
-            form={form}
-            setForm={setForm}
-            users={users}
-            teams={teams}
-            createTask={createTask}
-            setShowModal={setShowModal}
-          />
+              {Object.entries(
+                reports.reduce((acc, report) => {
+                  if (!acc[report.date]) acc[report.date] = [];
+                  acc[report.date].push(report);
+                  return acc;
+                }, {})
+              ).map(([date, dailyReports]) => (
 
-        )
-      }
+                <details key={date} className="bg-white rounded shadow p-4">
+                  <summary className="font-bold text-lg cursor-pointer">
+                    📅 {date}
+                  </summary>
 
-      {
-        showTodoModal && (
-          <TodoModal
-            todoForm={todoForm}
-            setTodoForm={setTodoForm}
-            createTodo={createTodo}
-            setShowTodoModal={setShowTodoModal}
-          />
-        )
-      }
+                  <div className="mt-4 space-y-4">
+                    {dailyReports.map(r => (
+                      <div key={r._id} className="border p-3 rounded">
 
-      {
-        showTeamModal && (
-          <TeamModal
-            teamForm={teamForm}
-            setTeamForm={setTeamForm}
-            users={users}
-            setTeams={setTeams}
-            setShowTeamModal={setShowTeamModal}
-          />
-        )
-      }
+                        <h3 className="font-semibold">
+                          {r.user} ({r.type === "task" ? "Task Report" : "Todo Report"})
+                        </h3>
 
-    </div >
+                        {r.tasks.map((t, i) => (
+                          <p key={i} className="text-sm">• {t}</p>
+                        ))}
+
+                      </div>
+                    ))}
+                  </div>
+
+                </details>
+              ))}
+
+            </div>
+          )}
+
+
+          {/* ANALYTICS */}
+          {active === "analytics" && role === "admin" && (
+            <div className="space-y-4">
+              {users.map(user => {
+                const userTasks = tasks.filter(t => t.assignedUser === user.name);
+                const done = userTasks.filter(t => t.status === "Completed").length;
+                const rate = userTasks.length
+                  ? Math.round((done / userTasks.length) * 100)
+                  : 0;
+
+                return (
+                  <div key={user._id} className="bg-white p-4 rounded shadow">
+                    <h3>{user.name}</h3>
+                    <p>Total: {userTasks.length} | Done: {done}</p>
+                    <div className="w-full bg-gray-200 h-3 rounded mt-2">
+                      <div
+                        className="bg-green-600 h-3 rounded"
+                        style={{ width: `${rate}%` }}
+                      />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* KANBAN */}
+          {active === "kanban" && role === "admin" && (
+            <DndContext
+              collisionDetection={closestCorners}
+              onDragEnd={async (event) => {
+                const { active, over } = event;
+                if (!over) return;
+
+                try {
+                  const res = await API.put(`/tasks/${active.id}/status`, {
+                    status: over.id
+                  });
+
+                  setTasks(prev =>
+                    prev.map(t =>
+                      t._id === active.id ? { ...res.data } : t
+                    )
+                  );
+
+                } catch (err) {
+                  console.log(err);
+                }
+              }}
+
+            >
+              <div className="grid grid-cols-3 gap-6">
+                {["Pending", "In Progress", "Completed"].map(status => (
+                  <KanbanColumn
+                    key={status}
+                    id={status}
+                    tasks={safeTasks.filter(t => t.status === status)}
+                  />
+                ))}
+              </div>
+            </DndContext>
+          )}
+
+        </div>
+
+        {/* MODAL */}
+        {
+          showModal && (
+            <TaskModal
+              form={form}
+              setForm={setForm}
+              users={users}
+              teams={teams}
+              createTask={createTask}
+              setShowModal={setShowModal}
+            />
+
+          )
+        }
+
+        {
+          showTodoModal && (
+            <TodoModal
+              todoForm={todoForm}
+              setTodoForm={setTodoForm}
+              createTodo={createTodo}
+              setShowTodoModal={setShowTodoModal}
+            />
+          )
+        }
+
+        {
+          showTeamModal && (
+            <TeamModal
+              teamForm={teamForm}
+              setTeamForm={setTeamForm}
+              users={users}
+              setTeams={setTeams}
+              setShowTeamModal={setShowTeamModal}
+            />
+          )
+        }
+
+      </div >
+    </div>
+
 
   );
 
@@ -1372,12 +1445,12 @@ function TaskCard({
 
       <div className="mt-3 flex flex-wrap gap-2">
         <button onClick={() => updateStatus(task._id, "Completed")}
-          className="bg-green-600 text-white px-3 py-1 rounded text-sm">
+          className="px-4 py-2 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition">
           Done
         </button>
 
         <button onClick={() => updateStatus(task._id, "In Progress")}
-          className="bg-blue-600 text-white px-3 py-1 rounded text-sm">
+          className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition">
           Progress
         </button>
 
@@ -1469,9 +1542,8 @@ Due: ${task.dueDate || "No due date"}`;
           <button
             onClick={() => deleteTask(task._id
 
-
             )}
-            className="bg-red-600 text-white px-3 py-1 rounded text-sm"
+            className="px-4 py-2 text-sm font-medium bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
           >
             Delete
           </button>
@@ -1581,7 +1653,7 @@ function KanbanColumn({ id, tasks }) {
   const { setNodeRef } = useDroppable({ id });
 
   return (
-    <div ref={setNodeRef} className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition min-h-[300px]">
+    <div ref={setNodeRef} className="bg-white p-4 rounded shadow min-h-[300px]">
       <h3 className="font-semibold mb-4">{id}</h3>
       {tasks.map(task => (
         <KanbanItem key={task._id} task={task} />
@@ -1934,7 +2006,7 @@ function MessagesPage({
     <div className="grid grid-cols-3 gap-6">
 
       {/* Conversation List */}
-      <div className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition col-span-2">
+      <div className="bg-white p-4 rounded shadow col-span-2">
         <h3 className="font-bold mb-4">Inbox</h3>
 
         {visibleMessages.length === 0 && (
@@ -1977,7 +2049,7 @@ function MessagesPage({
       </div>
 
       {/* Send Message */}
-      <div className="bg-white p-5 rounded-2xl shadow-md hover:shadow-xl transition">
+      <div className="bg-white p-4 rounded shadow">
         <h3 className="font-bold mb-4">Send Message</h3>
 
         <select
