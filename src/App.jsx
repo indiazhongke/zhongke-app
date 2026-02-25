@@ -350,17 +350,17 @@ function App() {
   }, [role, currentUser]);
 
   useEffect(() => {
-  const fetchAnalytics = async () => {
-    try {
-      const res = await API.get("/analytics/overview");
-      setAnalytics(res.data);
-    } catch (err) {
-      console.log(err);
-    }
-  };
+    const fetchAnalytics = async () => {
+      try {
+        const res = await API.get("/analytics/overview");
+        setAnalytics(res.data);
+      } catch (err) {
+        console.log(err);
+      }
+    };
 
-  fetchAnalytics();
-}, []);
+    fetchAnalytics();
+  }, []);
 
   /* ================= LOGIN ================= */
 
@@ -1153,10 +1153,10 @@ function App() {
                 )}
 
                 {visibleFilteredTasks
-                  .filter(t => t && t.id)
+                  .filter(t => t && t._id)
                   .map(task => (
                     <TaskCard
-                      key={task.id}
+                      key={task._id}
                       task={task}
                       role={role}
                       updateStatus={updateStatus}
@@ -1179,7 +1179,16 @@ function App() {
                   </button>
                 </div>
               )}
-
+{role === "member" && (
+  <div className="sticky bottom-0 bg-white border-t p-4">
+    <MemberButtons
+      filteredTasks={visibleFilteredTasks}
+      currentUser={currentUser}
+      setReports={setReports}
+      addNotification={addNotification}
+    />
+  </div>
+)}
             </div>
           )}
 
@@ -1570,10 +1579,14 @@ Due: ${task.dueDate || "No due date"}`;
           >
             Delete
           </button>
+          
         )}
+    
       </div>
+      
     </div>
   );
+  
 }
 
 function MemberButtons({ filteredTasks, currentUser, setReports, addNotification }) {
@@ -2054,8 +2067,8 @@ function MessagesPage({
                     <div
                       key={msg._id}
                       className={`p-3 rounded ${msg.from === me
-                          ? "bg-blue-100 text-right"
-                          : "bg-gray-100"
+                        ? "bg-blue-100 text-right"
+                        : "bg-gray-100"
                         }`}
                     >
                       <p className="text-sm font-semibold">
