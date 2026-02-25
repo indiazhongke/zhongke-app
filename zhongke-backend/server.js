@@ -1,4 +1,4 @@
-require("dotenv").config();
+equire("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -16,13 +16,6 @@ const notificationRoutes = require("./routes/notificationRoutes");
 const authRoutes = require("./routes/authRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
 
-const admin = require('firebase-admin');
-const serviceAccount = require('./firebase-service-account.json');
-
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount),
-});
-
 const app = express();
 const server = http.createServer(app);
 
@@ -35,20 +28,7 @@ const io = new Server(server, {
 
 app.set("io", io);
 
-const corsOptions = {
-  origin: [
-    "http://localhost:5173",
-    "https://localhost",
-    "http://localhost",
-    "https://your-frontend-url.onrender.com"
-  ],
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-};
-
-app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
-
+app.use(cors());
 app.use(express.json());
 
 app.use("/api/users", userRoutes);
