@@ -13,7 +13,6 @@ router.post("/", async (req, res) => {
     });
 
     const savedMessage = await message.save();
-    req.app.get("io").emit("newMessage", savedMessage);
     res.status(201).json(savedMessage);
 
   } catch (error) {
@@ -48,4 +47,41 @@ router.get("/", async (req, res) => {
   }
 });
 
+// DELETE FOR ME
+router.put("/:id/delete-for-me", async (req, res) => {
+  try {
+    const user = req.body.user; // who is deleting
+
+    const message = await Message.findById(req.params.id);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+
+    if (!message.deletedFor) message.deletedFor = [];
+
+    if (!message.deletedFor.includes(user)) {
+      message.deletedFor.push(user);
+    }
+
+    await message.save();
+    res.json({ success: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE FOR EVERYONE
+router.put("/:id/delete-for-everyone", async (req, res) => {
+  try {
+    const message = await Message.findById(req.params.id);
+    if (!message) return res.status(404).json({ error: "Message not found" });
+
+    message.isDeletedForEveryone = true;
+
+    await message.save();
+    res.json({ success: true });
+
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;
