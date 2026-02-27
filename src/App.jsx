@@ -1,19 +1,25 @@
 import { useState, useEffect } from "react";
 import {
-  PieChart, Pie, Cell, Tooltip,
-  ResponsiveContainer, BarChart, Bar,
-  XAxis, YAxis
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
 } from "recharts";
 import {
   DndContext,
   closestCorners,
   useDroppable,
-  useDraggable
+  useDraggable,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import API from "./api/axios";
 
-
+const ADMIN_WHATSAPP = "917290092460";
 
 /* ================= MAIN APP ================= */
 
@@ -43,7 +49,7 @@ function App() {
   const [memberForm, setMemberForm] = useState({
     name: "",
     phone: "",
-    memberId: ""
+    memberId: "",
   });
 
   const [loginName, setLoginName] = useState("");
@@ -55,25 +61,57 @@ function App() {
   const [todoForm, setTodoForm] = useState({
     title: "",
     note: "",
-    status: "Pending"
+    status: "Pending",
   });
 
   const [showTeamModal, setShowTeamModal] = useState(false);
   const [teamForm, setTeamForm] = useState({
     name: "",
     work: "",
-    members: []
+    members: [],
   });
 
   const [analytics, setAnalytics] = useState({
     pending: 0,
     progress: 0,
     completed: 0,
-    overdue: 0
+    overdue: 0,
   });
 
+  //message delete option
+  const deleteForMe = async (id) => {
+    try {
+      await API.put(`/messages/${id}/delete-for-me`);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === id
+            ? {
+              ...msg,
+              deletedFor: [
+                ...(msg.deletedFor || []),
+                currentUser?.name || "Admin",
+              ],
+            }
+            : msg,
+        ),
+      );
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
-
+  const deleteForEveryone = async (id) => {
+    try {
+      await API.put(`/messages/${id}/delete-for-everyone`);
+      setMessages((prev) =>
+        prev.map((msg) =>
+          msg._id === id ? { ...msg, isDeletedForEveryone: true } : msg,
+        ),
+      );
+    } catch (err) {
+      console.log(err);
+    }
+  };
 
   const [form, setForm] = useState({
     title: "",
@@ -82,60 +120,53 @@ function App() {
     assignedUser: "",
     team: "",
     fileName: "",
-    fileData: ""
+    fileData: "",
   });
-
 
   const addNotification = async (message, recipient) => {
     try {
       const res = await API.post("/notifications", {
         message,
-        recipient
+        recipient,
       });
 
-      setNotifications(prev => [res.data, ...prev]);
+      setNotifications((prev) => [res.data, ...prev]);
 
       // 🔊 Sound
-      const audio = new Audio("https://www.soundjay.com/buttons/sounds/button-7.mp3");
+      const audio = new Audio(
+        "https://www.soundjay.com/buttons/sounds/button-7.mp3",
+      );
       audio.play().catch(() => { });
-
     } catch (err) {
       console.log("Notification error:", err.response?.data || err.message);
     }
   };
 
-  const sendMessage = async (toUser, content) => {
+  async function sendMessage(toUser, content) {
     if (!content.trim()) return;
 
     try {
-      const sender = role === "admin"
-        ? "Admin"
-        : currentUser.name;
+      const sender = role === "admin" ? "Admin" : currentUser.name;
 
-      // 1️⃣ Save message
       const res = await API.post("/messages", {
         from: sender,
         to: toUser,
-        content
+        content,
       });
 
-      setMessages(prev => [...prev, res.data]);
+      setMessages((prev) => [...prev, res.data]);
 
-      // 2️⃣ Save notification in backend
       await API.post("/notifications", {
         message: `New message from ${sender}`,
-        recipient: toUser
+        recipient: toUser,
       });
 
-      // 3️⃣ Refresh notifications
       const notifRes = await API.get("/notifications");
       setNotifications(notifRes.data);
-
     } catch (err) {
       console.log(err.response?.data || err.message);
     }
-  };
-
+  }
 
   useEffect(() => {
     window.addEventListener("beforeinstallprompt", (e) => {
@@ -146,21 +177,17 @@ function App() {
 
   useEffect(() => {
     tasks
-      .filter(t => t && t._id)
-      .forEach(task => {
+      .filter((t) => t && t.id)
+      .forEach((task) => {
         if (
           task.dueDate &&
           task.status !== "Completed" &&
           new Date(task.dueDate) < new Date()
         ) {
-          addNotification(
-            `Task "${task.title}" is overdue`,
-            "admin"
-          );
+          addNotification(`Task "${task.title}" is overdue`, "admin");
         }
       });
   }, [tasks]);
-
 
   const createTodo = async () => {
     if (!todoForm.title.trim()) return;
@@ -170,52 +197,45 @@ function App() {
         title: todoForm.title,
         note: todoForm.note,
         status: todoForm.status,
-        owner: role === "admin" ? "admin" : currentUser.name
+        owner: role === "admin" ? "admin" : currentUser.name,
       });
 
-      setTodos(prev => [...prev, res.data]);
+      setTodos((prev) => [...prev, res.data]);
 
       setTodoForm({
         title: "",
         note: "",
-        status: "Pending"
+        status: "Pending",
       });
 
       setShowTodoModal(false);
       showMessage("Todo Created");
-
     } catch (err) {
       console.log(err.response?.data || err.message);
     }
   };
 
-
-
   const updateTodoStatus = async (id, status) => {
     try {
       const res = await API.put(`/todos/${id}`, { status });
 
-      setTodos(prev =>
-        prev.map(t => (t._id === id ? res.data : t))
-      );
+      setTodos((prev) => prev.map((t) => (t.id === id ? res.data : t)));
     } catch (err) {
       console.log(err);
     }
   };
-
 
   const deleteTodo = async (id) => {
     try {
       await API.delete(`/todos/${id}`);
-      setTodos(prev => prev.filter(t => t._id !== id));
+      setTodos((prev) => prev.filter((t) => t.id !== id));
     } catch (err) {
       console.log(err);
     }
   };
 
-
   const editTodo = async (id) => {
-    const todo = todos.find(t => t._id === id);
+    const todo = todos.find((t) => t.id === id);
     if (!todo) return;
 
     const newTitle = prompt("Edit todo", todo.title);
@@ -223,14 +243,10 @@ function App() {
 
     try {
       const res = await API.put(`/todos/${id}`, {
-        title: newTitle
+        title: newTitle,
       });
 
-      setTodos(prev =>
-        prev.map(t =>
-          t._id === id ? res.data : t
-        )
-      );
+      setTodos((prev) => prev.map((t) => (t.id === id ? res.data : t)));
 
       showMessage("Todo Updated");
     } catch (err) {
@@ -245,7 +261,6 @@ function App() {
       try {
         const res = await API.get("/tasks");
         setTasks(res.data);
-        console.log("LIVE TASKS:", res.data);
       } catch (err) {
         console.log("Error fetching tasks:", err.message);
         console.log("Make sure VITE_API_URL is set correctly for production");
@@ -255,7 +270,7 @@ function App() {
     fetchTasks();
   }, []);
 
-  const showMessage = msg => {
+  const showMessage = (msg) => {
     setToast(msg);
     setTimeout(() => setToast(""), 2000);
   };
@@ -308,7 +323,6 @@ function App() {
 
         const res = await API.get(`/messages?user=${user}`);
         setMessages(res.data);
-
       } catch (err) {
         console.log(err);
       }
@@ -339,14 +353,12 @@ function App() {
 
         const res = await API.get(`/notifications?user=${user}`);
         setNotifications(res.data);
-
       } catch (err) {
         console.log(err);
       }
     };
 
     fetchNotifications();
-
   }, [role, currentUser]);
 
   useEffect(() => {
@@ -370,17 +382,12 @@ function App() {
         <div className="bg-white p-10 rounded-xl shadow-lg w-96">
           {/* Logo Section */}
           <div className="flex flex-col items-center mb-8">
-            <img
-              src="/logox.png"
-              alt="Logo"
-              className="w-auto h-30"
-            />
+            <img src="/logox.png" alt="Logo" className="w-auto h-30" />
             <br />
             <h1
               className="text-3xl font-bold text-center"
               style={{ color: "#1c7ab8" }}
             >
-
               Zhongke India
             </h1>
 
@@ -391,7 +398,6 @@ function App() {
               Taskflow <span style={{ color: "#3fb14e" }}>Manager</span>
             </p>
           </div>
-
 
           <button
             onClick={async () => {
@@ -407,7 +413,7 @@ function App() {
                 localStorage.setItem("role", "admin");
                 localStorage.setItem(
                   "currentUser",
-                  JSON.stringify({ name: "Admin", role: "admin" })
+                  JSON.stringify({ name: "Admin", role: "admin" }),
                 );
 
                 setRole("admin");
@@ -421,7 +427,6 @@ function App() {
             Login as Admin
           </button>
           <div className="space-y-3 mt-4">
-
             <input
               placeholder="Enter Name"
               value={loginName}
@@ -441,17 +446,19 @@ function App() {
                 try {
                   const res = await API.post("/auth/member-login", {
                     name: loginName.trim(),
-                    memberId: loginMemberId.trim().toLowerCase()
+                    memberId: loginMemberId.trim().toLowerCase(),
                   });
 
                   localStorage.setItem("token", res.data.token);
                   localStorage.setItem("role", "member");
-                  localStorage.setItem("currentUser", JSON.stringify(res.data.user));
+                  localStorage.setItem(
+                    "currentUser",
+                    JSON.stringify(res.data.user),
+                  );
 
                   setRole("member");
                   setCurrentUser(res.data.user);
                   setActive("tasks");
-
                 } catch (err) {
                   alert(err.response?.data?.error || "Invalid credentials");
                 }
@@ -469,35 +476,51 @@ function App() {
   /* ================= HELPERS ================= */
   const filteredTodos =
     role === "admin"
-      ? todos.filter(t => t.owner === "admin")
-      : todos.filter(t => t.owner === currentUser?.name);
+      ? todos.filter((t) => t.owner === "admin")
+      : todos.filter((t) => t.owner === currentUser?.name);
 
-  const safeTasks = tasks.filter(t => t && t._id);
+  const safeTasks = tasks.filter((t) => t && t.id);
 
   const filteredTasks =
     role === "admin"
       ? safeTasks
-      : safeTasks.filter(t => t.assignedUser === currentUser?.name);
+      : safeTasks.filter((t) => t.assignedUser === currentUser?.name);
   const visibleFilteredTasks = filteredTasks
-    .filter(task =>
-      task.title.toLowerCase().includes(taskSearch.toLowerCase())
+    .filter((task) =>
+      task.title.toLowerCase().includes(taskSearch.toLowerCase()),
     )
-    .filter(task =>
-      taskFilter === "All" ? true : task.status === taskFilter
+    .filter((task) =>
+      taskFilter === "All" ? true : task.status === taskFilter,
     );
 
-  const pending = safeTasks.filter(t => t.status === "Pending").length;
+  const pending = safeTasks.filter((t) => t.status === "Pending").length;
 
-  const progress = safeTasks.filter(t => t.status === "In Progress").length;
+  const progress = safeTasks.filter((t) => t.status === "In Progress").length;
 
-  const completed = safeTasks.filter(t => t.status === "Completed").length;
+  const completed = safeTasks.filter((t) => t.status === "Completed").length;
 
-  const overdue = safeTasks.filter(t => {
+  const overdue = safeTasks.filter((t) => {
     if (!t.dueDate) return false;
     if (t.status === "Completed") return false;
     return new Date(t.dueDate) < new Date();
   }).length;
 
+  const overdueTasks = visibleFilteredTasks.filter(
+    (t) =>
+      t.dueDate && t.status !== "Completed" && new Date(t.dueDate) < new Date(),
+  );
+
+  const pendingTasks = visibleFilteredTasks.filter(
+    (t) => t.status === "Pending",
+  );
+
+  const progressTasks = visibleFilteredTasks.filter(
+    (t) => t.status === "In Progress",
+  );
+
+  const completedTasks = visibleFilteredTasks.filter(
+    (t) => t.status === "Completed",
+  );
 
   /* ================= TASK FUNCTIONS ================= */
 
@@ -506,7 +529,7 @@ function App() {
 
     try {
       const res = await API.post("/tasks", form);
-      setTasks(prev => [...prev, res.data]);
+      setTasks((prev) => [...prev, res.data]);
 
       setForm({
         title: "",
@@ -515,48 +538,41 @@ function App() {
         assignedUser: "",
         team: "",
         fileName: "",
-        fileData: ""
+        fileData: "",
       });
 
       setShowModal(false);
       showMessage("Task Created");
-
     } catch (err) {
       console.log(err);
     }
   };
 
-
   const updateStatus = async (id, status) => {
     try {
       const res = await API.put(`/tasks/${id}`, { status });
 
-      if (!res.data || !res.data._id) return;
+      if (!res.data || !res.data.id) return;
 
-      setTasks(prev =>
+      setTasks((prev) =>
         prev
-          .map(t => (t && t._id === id ? res.data : t))
-          .filter(t => t && t._id)
+          .map((t) => (t && t.id === id ? res.data : t))
+          .filter((t) => t && t.id),
       );
 
       showMessage("Status Updated");
-
     } catch (err) {
       console.log("Update error:", err.response?.data || err.message);
     }
   };
 
-
   const deleteTask = async (id) => {
     try {
       await API.delete(`/tasks/${id}`);
 
-      setTasks(prev =>
-        prev.filter(t => t._id !== id)
-      );
+      setTasks((prev) => prev.filter((t) => t.id !== id));
 
       showMessage("Task Deleted");
-
     } catch (err) {
       console.log("Delete error:", err.response?.data || err.message);
     }
@@ -591,13 +607,10 @@ function App() {
     return groups;
   };
 
-
-
   /* ================= RENDER ================= */
 
   return (
     <div className="flex h-screen bg-gray-100 overflow-hidden">
-
       {toast && (
         <div className="fixed top-5 right-5 bg-black text-white px-4 py-2 rounded shadow">
           {toast}
@@ -621,11 +634,7 @@ function App() {
   `}
       >
         <div className="flex items-center justify-between mb-8">
-          <img
-            src="/logox.png"
-            alt="Logo"
-            className="h-12 w-auto"
-          />
+          <img src="/logox.png" alt="Logo" className="h-12 w-auto" />
 
           {/* Close button (mobile only) */}
           <button
@@ -637,26 +646,35 @@ function App() {
         </div>
 
         {(role === "admin"
-          ? ["dashboard", "tasks", "todos", "kanban", "users", "teams", "reports", "analytics", "notifications", "messages"]
+          ? [
+            "dashboard",
+            "tasks",
+            "todos",
+            "kanban",
+            "users",
+            "teams",
+            "reports",
+            "analytics",
+            "notifications",
+            "messages",
+          ]
           : ["tasks", "todos", "notifications", "messages"]
-        ).map(item => (
+        ).map((item) => (
           <button
             key={item}
             onClick={() => {
               setActive(item);
               setShowSidebar(false); // close on mobile click
             }}
-            className={`block w-full text-left px-4 py-2 mb-2 rounded capitalize flex justify-between transition ${active === item
-              ? "bg-blue-600 text-white"
-              : "hover:bg-gray-200"
+            className={`block w-full text-left px-4 py-2 mb-2 rounded capitalize flex justify-between transition ${active === item ? "bg-blue-600 text-white" : "hover:bg-gray-200"
               }`}
           >
             <span>{item}</span>
 
             {item === "notifications" &&
-              notifications.filter(n => !n.read).length > 0 && (
+              notifications.filter((n) => !n.read).length > 0 && (
                 <span className="bg-red-600 text-white text-xs px-2 py-0.5 rounded-full">
-                  {notifications.filter(n => !n.read).length}
+                  {notifications.filter((n) => !n.read).length}
                 </span>
               )}
           </button>
@@ -679,7 +697,8 @@ function App() {
               await window.deferredPrompt.userChoice;
               window.deferredPrompt = null;
             }
-          }} className="mt-3 bg-[#1c7ab8] hover:bg-[#166a9d] text-white px-2 py-1 rounded text-xs w-auto transition"
+          }}
+          className="mt-3 bg-[#1c7ab8] hover:bg-[#166a9d] text-white px-2 py-1 rounded text-xs w-auto transition"
         >
           Install App
         </button>
@@ -692,10 +711,7 @@ function App() {
       )}
       {/* MAIN */}
       <div className="md:hidden flex items-center justify-between p-4 bg-white shadow">
-        <button
-          onClick={() => setShowSidebar(true)}
-          className="text-2xl"
-        >
+        <button onClick={() => setShowSidebar(true)} className="text-2xl">
           ☰
         </button>
       </div>
@@ -710,7 +726,6 @@ function App() {
                     await API.delete("/notifications");
                     setNotifications([]);
                   }}
-
                   className="bg-red-600 text-white px-3 py-1 rounded text-sm"
                 >
                   Clear All
@@ -721,17 +736,19 @@ function App() {
                 <p className="text-gray-500">No notifications</p>
               )}
 
-              {notifications.map(n => (
+              {notifications.map((n) => (
                 <div
-                  key={n._id}
-                  className={`p-4 rounded shadow ${n.read ? "bg-white" : "bg-blue-50 border-l-4 border-blue-600"
+                  key={n.id}
+                  className={`p-4 rounded shadow ${n.read
+                      ? "bg-white"
+                      : "bg-blue-50 border-l-4 border-blue-600"
                     }`}
                   onClick={async () => {
-                    await API.put(`/notifications/${n._id}`);
-                    setNotifications(prev =>
-                      prev.map(item =>
-                        item._id === n._id ? { ...item, read: true } : item
-                      )
+                    await API.put(`/notifications/${n.id}`);
+                    setNotifications((prev) =>
+                      prev.map((item) =>
+                        item.id === n.id ? { ...item, read: true } : item,
+                      ),
                     );
                   }}
                 >
@@ -748,19 +765,20 @@ function App() {
               users={users}
               messages={messages}
               sendMessage={sendMessage}
+              deleteForMe={deleteForMe}
+              deleteForEveryone={deleteForEveryone}
             />
           )}
 
           {showMemberModal && (
             <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
               <div className="bg-white p-6 rounded w-96 space-y-4">
-
                 <h2 className="text-xl font-bold">Add Member</h2>
 
                 <input
                   placeholder="Full Name"
                   value={memberForm.name}
-                  onChange={e =>
+                  onChange={(e) =>
                     setMemberForm({ ...memberForm, name: e.target.value })
                   }
                   className="w-full border p-2 rounded"
@@ -769,7 +787,7 @@ function App() {
                 <input
                   placeholder="Phone Number (with country code)"
                   value={memberForm.phone}
-                  onChange={e =>
+                  onChange={(e) =>
                     setMemberForm({ ...memberForm, phone: e.target.value })
                   }
                   className="w-full border p-2 rounded"
@@ -778,7 +796,7 @@ function App() {
                 <input
                   placeholder="Unique Member ID"
                   value={memberForm.memberId}
-                  onChange={e =>
+                  onChange={(e) =>
                     setMemberForm({ ...memberForm, memberId: e.target.value })
                   }
                   className="w-full border p-2 rounded"
@@ -794,7 +812,11 @@ function App() {
 
                   <button
                     onClick={async () => {
-                      if (!memberForm.name || !memberForm.phone || !memberForm.memberId) {
+                      if (
+                        !memberForm.name ||
+                        !memberForm.phone ||
+                        !memberForm.memberId
+                      ) {
                         alert("All fields required");
                         return;
                       }
@@ -802,23 +824,23 @@ function App() {
                       try {
                         const res = await API.post("/users", memberForm);
 
-                        setUsers(prev => [...prev, res.data]);
+                        setUsers((prev) => [...prev, res.data]);
 
                         setMemberForm({
                           name: "",
                           phone: "",
-                          memberId: ""
+                          memberId: "",
                         });
 
                         setShowMemberModal(false);
                         showMessage("User Added Successfully");
-
                       } catch (error) {
                         console.log(error.response?.data);
-                        alert(error.response?.data?.error || "Error adding user");
+                        alert(
+                          error.response?.data?.error || "Error adding user",
+                        );
                       }
                     }}
-
                     className="flex-1 bg-blue-600 text-white py-2 rounded"
                   >
                     Add Member
@@ -830,26 +852,26 @@ function App() {
 
           {active === "todos" && (
             <div className="space-y-4">
-
-              {filteredTodos.map(todo => (
-
-                <div key={todo._id} className="bg-white p-4 rounded shadow">
-
+              {filteredTodos.map((todo) => (
+                <div key={todo.id} className="bg-white p-4 rounded shadow">
                   <h3 className="font-semibold">{todo.title}</h3>
-                  <p>Status: <b>{todo.status}</b></p>
-                  {todo.note && <p className="text-sm text-gray-500">Note: {todo.note}</p>}
+                  <p>
+                    Status: <b>{todo.status}</b>
+                  </p>
+                  {todo.note && (
+                    <p className="text-sm text-gray-500">Note: {todo.note}</p>
+                  )}
 
                   <div className="flex flex-wrap gap-2 mt-3">
-
                     <button
-                      onClick={() => updateTodoStatus(todo._id, "Done")}
+                      onClick={() => updateTodoStatus(todo.id, "Done")}
                       className="bg-green-600 text-white px-3 py-1 rounded"
                     >
                       Done
                     </button>
 
                     <button
-                      onClick={() => updateTodoStatus(todo._id, "Not Done")}
+                      onClick={() => updateTodoStatus(todo.id, "Not Done")}
                       className="bg-yellow-500 text-white px-3 py-1 rounded"
                     >
                       Not Done
@@ -859,10 +881,10 @@ function App() {
                       onClick={() => {
                         const note = prompt("Add note");
                         if (!note) return;
-                        setTodos(prev =>
-                          prev.map(t =>
-                            t._id === todo._id ? { ...t, note } : t
-                          )
+                        setTodos((prev) =>
+                          prev.map((t) =>
+                            t.id === todo.id ? { ...t, note } : t,
+                          ),
                         );
                       }}
                       className="bg-purple-600 text-white px-3 py-1 rounded"
@@ -871,26 +893,23 @@ function App() {
                     </button>
 
                     <button
-                      onClick={() => editTodo(todo._id)}
+                      onClick={() => editTodo(todo.id)}
                       className="bg-blue-600 text-white px-3 py-1 rounded"
                     >
                       Edit
                     </button>
 
                     <button
-                      onClick={() => deleteTodo(todo._id)}
+                      onClick={() => deleteTodo(todo.id)}
                       className="bg-red-600 text-white px-3 py-1 rounded"
                     >
                       Delete
                     </button>
-
                   </div>
-
                 </div>
               ))}
 
               <div className="flex flex-wrap gap-3 mb-6">
-
                 <button
                   onClick={() => setShowTodoModal(true)}
                   className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
@@ -902,12 +921,12 @@ function App() {
                   onClick={() => {
                     const headers = "Todo,Status\n";
                     const rows = filteredTodos
-                      .map(t => `${t.title},${t.status}`)
+                      .map((t) => `${t.title},${t.status}`)
                       .join("\n");
 
                     const link = document.createElement("a");
                     link.href = encodeURI(
-                      "data:text/csv;charset=utf-8," + headers + rows
+                      "data:text/csv;charset=utf-8," + headers + rows,
                     );
                     link.download = "todo_report.csv";
                     link.click();
@@ -920,12 +939,13 @@ function App() {
                 <button
                   onClick={() => {
                     const text = filteredTodos
-                      .map(t => `• ${t.title} - ${t.status}`)
-                      .join("%0A");
+                      .map((t) => `• ${t.title} - ${t.status}`)
+                      .join("\n");
 
-                    window.open(
-                      `https://wa.me/?text=Todo List%0A${text}`
-                    );
+                    const message = `Todo Report from ${role === "admin" ? "Admin" : currentUser.name
+                      }:\n\n${text}`;
+
+                    window.location.href = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
                   }}
                   className="bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg shadow"
                 >
@@ -941,31 +961,25 @@ function App() {
                       user: role === "admin" ? "Admin" : currentUser.name,
                       date: today,
                       tasks: filteredTodos.map(
-                        t => `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`
+                        (t) =>
+                          `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`,
                       ),
-                      type: "todo"
+                      type: "todo",
                     };
 
                     try {
                       const res = await API.post("/reports", reportData);
-                      setReports(prev => [res.data, ...prev]);
+                      setReports((prev) => [res.data, ...prev]);
                       alert("Todo Report Submitted");
                     } catch (err) {
                       console.log(err);
                     }
-
-
-                    alert("Todo Report Submitted");
                   }}
                   className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg shadow"
                 >
                   Submit Report
                 </button>
-
               </div>
-
-
-
             </div>
           )}
 
@@ -987,7 +1001,7 @@ function App() {
                         data={[
                           { name: "Pending", value: pending },
                           { name: "Progress", value: progress },
-                          { name: "Completed", value: completed }
+                          { name: "Completed", value: completed },
                         ]}
                         dataKey="value"
                         outerRadius={100}
@@ -1003,7 +1017,9 @@ function App() {
 
                 <ChartBox>
                   <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={tasks.map(t => ({ name: t.title, val: 1 }))}>
+                    <BarChart
+                      data={tasks.map((t) => ({ name: t.title, val: 1 }))}
+                    >
                       <XAxis dataKey="name" hide />
                       <YAxis />
                       <Tooltip />
@@ -1018,7 +1034,6 @@ function App() {
           {/* USERS */}
           {active === "users" && role === "admin" && (
             <div>
-
               <button
                 onClick={() => setShowMemberModal(true)}
                 className="bg-blue-600 text-white px-4 py-2 rounded mb-4"
@@ -1030,18 +1045,23 @@ function App() {
                 <p className="text-gray-500">No members added yet</p>
               )}
 
-              {users.map(user => (
-                <div key={user._id} className="bg-white p-4 rounded shadow mb-3 flex justify-between items-center">
+              {users.map((user) => (
+                <div
+                  key={user.id}
+                  className="bg-white p-4 rounded shadow mb-3 flex justify-between items-center"
+                >
                   <div>
                     <p className="font-semibold">{user.name}</p>
-                    <p className="text-sm text-gray-500">Member ID: {user.memberId}</p>
+                    <p className="text-sm text-gray-500">
+                      Member ID: {user.memberId}
+                    </p>
                     <p className="text-sm text-gray-500">Phone: {user.phone}</p>
                   </div>
 
                   <button
                     onClick={async () => {
-                      await API.delete(`/users/${user._id}`);
-                      setUsers(prev => prev.filter(u => u._id !== user._id));
+                      await API.delete(`/users/${user.id}`);
+                      setUsers((prev) => prev.filter((u) => u.id !== user.id));
                     }}
                     className="bg-red-600 text-white px-3 py-1 rounded"
                   >
@@ -1049,15 +1069,12 @@ function App() {
                   </button>
                 </div>
               ))}
-
             </div>
           )}
-
 
           {/* TEAMS */}
           {active === "teams" && role === "admin" && (
             <div className="space-y-4">
-
               {/* OPEN MODAL BUTTON */}
               <button
                 onClick={() => setShowTeamModal(true)}
@@ -1066,13 +1083,12 @@ function App() {
                 + Create Team
               </button>
 
-
               {teams.length === 0 && (
                 <p className="text-gray-500">No teams created yet</p>
               )}
 
-              {teams.map(team => (
-                <div key={team._id} className="bg-white p-4 rounded shadow">
+              {teams.map((team) => (
+                <div key={team.id} className="bg-white p-4 rounded shadow">
                   <h3 className="font-semibold text-lg">{team.name}</h3>
                   <p className="text-sm text-gray-500">Work: {team.work}</p>
 
@@ -1089,10 +1105,8 @@ function App() {
 
                   <button
                     onClick={async () => {
-                      await API.delete(`/teams/${team._id}`);
-                      setTeams(prev =>
-                        prev.filter(t => t._id !== team._id)
-                      );
+                      await API.delete(`/teams/${team.id}`);
+                      setTeams((prev) => prev.filter((t) => t.id !== team.id));
                     }}
                     className="mt-3 bg-red-600 text-white px-3 py-1 rounded text-sm"
                   >
@@ -1103,12 +1117,9 @@ function App() {
             </div>
           )}
 
-
-
           {/* TASKS */}
           {active === "tasks" && (
             <div className="flex flex-col h-full">
-
               {/* Filters */}
               <div className="flex gap-3 flex-wrap mb-4">
                 <input
@@ -1132,15 +1143,16 @@ function App() {
               </div>
 
               {/* Scrollable Content */}
-              <div className="flex-1 overflow-y-auto space-y-4 pr-2">
-
+              <div className="flex-1 overflow-y-auto space-y-6 pr-2">
                 {role === "member" && (
                   <div className="bg-white p-4 rounded shadow">
                     <h3 className="font-semibold mb-2">My Teams</h3>
                     <div className="flex flex-wrap gap-2">
                       {teams
-                        .filter(team => team.members.includes(currentUser.name))
-                        .map(team => (
+                        .filter((team) =>
+                          team.members.includes(currentUser.name),
+                        )
+                        .map((team) => (
                           <span
                             key={team.id}
                             className="bg-green-100 text-green-700 px-2 py-1 rounded text-xs"
@@ -1152,20 +1164,49 @@ function App() {
                   </div>
                 )}
 
-                {visibleFilteredTasks
-                  .filter(t => t && t._id)
-                  .map(task => (
-                    <TaskCard
-                      key={task._id}
-                      task={task}
-                      role={role}
-                      updateStatus={updateStatus}
-                      deleteTask={deleteTask}
-                      setTasks={setTasks}
-                      showMessage={showMessage}
-                      users={users}
-                    />
-                  ))}
+                <TaskSection
+                  title="🔴 Overdue"
+                  tasks={overdueTasks}
+                  role={role}
+                  updateStatus={updateStatus}
+                  deleteTask={deleteTask}
+                  setTasks={setTasks}
+                  showMessage={showMessage}
+                  users={users}
+                />
+
+                <TaskSection
+                  title="🟡 Pending"
+                  tasks={pendingTasks}
+                  role={role}
+                  updateStatus={updateStatus}
+                  deleteTask={deleteTask}
+                  setTasks={setTasks}
+                  showMessage={showMessage}
+                  users={users}
+                />
+
+                <TaskSection
+                  title="🔵 In Progress"
+                  tasks={progressTasks}
+                  role={role}
+                  updateStatus={updateStatus}
+                  deleteTask={deleteTask}
+                  setTasks={setTasks}
+                  showMessage={showMessage}
+                  users={users}
+                />
+
+                <TaskSection
+                  title="🟢 Completed"
+                  tasks={completedTasks}
+                  role={role}
+                  updateStatus={updateStatus}
+                  deleteTask={deleteTask}
+                  setTasks={setTasks}
+                  showMessage={showMessage}
+                  users={users}
+                />
               </div>
 
               {/* Sticky Button */}
@@ -1179,73 +1220,75 @@ function App() {
                   </button>
                 </div>
               )}
-{role === "member" && (
-  <div className="sticky bottom-0 bg-white border-t p-4">
-    <MemberButtons
-      filteredTasks={visibleFilteredTasks}
-      currentUser={currentUser}
-      setReports={setReports}
-      addNotification={addNotification}
-    />
-  </div>
-)}
+              {role === "member" && (
+                <div className="sticky bottom-0 bg-white border-t p-4">
+                  <MemberButtons
+                    filteredTasks={visibleFilteredTasks}
+                    currentUser={currentUser}
+                    setReports={setReports}
+                    addNotification={addNotification}
+                  />
+                </div>
+              )}
             </div>
           )}
 
           {/* REPORTS */}
           {active === "reports" && role === "admin" && (
             <div className="space-y-6">
-
               {Object.entries(
                 reports.reduce((acc, report) => {
                   if (!acc[report.date]) acc[report.date] = [];
                   acc[report.date].push(report);
                   return acc;
-                }, {})
+                }, {}),
               ).map(([date, dailyReports]) => (
-
                 <details key={date} className="bg-white rounded shadow p-4">
                   <summary className="font-bold text-lg cursor-pointer">
                     📅 {date}
                   </summary>
 
                   <div className="mt-4 space-y-4">
-                    {dailyReports.map(r => (
-                      <div key={r._id} className="border p-3 rounded">
-
+                    {dailyReports.map((r) => (
+                      <div key={r.id} className="border p-3 rounded">
                         <h3 className="font-semibold">
-                          {r.user} ({r.type === "task" ? "Task Report" : "Todo Report"})
+                          {r.user} (
+                          {r.type === "task" ? "Task Report" : "Todo Report"})
                         </h3>
 
                         {r.tasks.map((t, i) => (
-                          <p key={i} className="text-sm">• {t}</p>
+                          <p key={i} className="text-sm">
+                            • {t}
+                          </p>
                         ))}
-
                       </div>
                     ))}
                   </div>
-
                 </details>
               ))}
-
             </div>
           )}
-
 
           {/* ANALYTICS */}
           {active === "analytics" && role === "admin" && (
             <div className="space-y-4">
-              {users.map(user => {
-                const userTasks = tasks.filter(t => t.assignedUser === user.name);
-                const done = userTasks.filter(t => t.status === "Completed").length;
+              {users.map((user) => {
+                const userTasks = tasks.filter(
+                  (t) => t.assignedUser === user.name,
+                );
+                const done = userTasks.filter(
+                  (t) => t.status === "Completed",
+                ).length;
                 const rate = userTasks.length
                   ? Math.round((done / userTasks.length) * 100)
                   : 0;
 
                 return (
-                  <div key={user._id} className="bg-white p-4 rounded shadow">
+                  <div key={user.id} className="bg-white p-4 rounded shadow">
                     <h3>{user.name}</h3>
-                    <p>Total: {userTasks.length} | Done: {done}</p>
+                    <p>
+                      Total: {userTasks.length} | Done: {done}
+                    </p>
                     <div className="w-full bg-gray-200 h-3 rounded mt-2">
                       <div
                         className="bg-green-600 h-3 rounded"
@@ -1268,83 +1311,64 @@ function App() {
 
                 try {
                   const res = await API.put(`/tasks/${active.id}/status`, {
-                    status: over.id
+                    status: over.id,
                   });
 
-                  setTasks(prev =>
-                    prev.map(t =>
-                      t._id === active.id ? { ...res.data } : t
-                    )
+                  setTasks((prev) =>
+                    prev.map((t) => (t.id === active.id ? { ...res.data } : t)),
                   );
-
                 } catch (err) {
                   console.log(err);
                 }
               }}
-
             >
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-                {["Pending", "In Progress", "Completed"].map(status => (
+                {["Pending", "In Progress", "Completed"].map((status) => (
                   <KanbanColumn
                     key={status}
                     id={status}
-                    tasks={safeTasks.filter(t => t.status === status)}
+                    tasks={safeTasks.filter((t) => t.status === status)}
                   />
                 ))}
               </div>
             </DndContext>
           )}
-
         </div>
 
         {/* MODAL */}
-        {
-          showModal && (
-            <TaskModal
-              form={form}
-              setForm={setForm}
-              users={users}
-              teams={teams}
-              createTask={createTask}
-              setShowModal={setShowModal}
-            />
+        {showModal && (
+          <TaskModal
+            form={form}
+            setForm={setForm}
+            users={users}
+            teams={teams}
+            createTask={createTask}
+            setShowModal={setShowModal}
+          />
+        )}
 
-          )
-        }
+        {showTodoModal && (
+          <TodoModal
+            todoForm={todoForm}
+            setTodoForm={setTodoForm}
+            createTodo={createTodo}
+            setShowTodoModal={setShowTodoModal}
+          />
+        )}
 
-        {
-          showTodoModal && (
-            <TodoModal
-              todoForm={todoForm}
-              setTodoForm={setTodoForm}
-              createTodo={createTodo}
-              setShowTodoModal={setShowTodoModal}
-            />
-          )
-        }
-
-        {
-          showTeamModal && (
-            <TeamModal
-              teamForm={teamForm}
-              setTeamForm={setTeamForm}
-              users={users}
-              setTeams={setTeams}
-              setShowTeamModal={setShowTeamModal}
-            />
-          )
-        }
-
-      </div >
+        {showTeamModal && (
+          <TeamModal
+            teamForm={teamForm}
+            setTeamForm={setTeamForm}
+            users={users}
+            setTeams={setTeams}
+            setShowTeamModal={setShowTeamModal}
+          />
+        )}
+      </div>
     </div>
-
-
   );
-
 }
-
-
-
 
 /* ================= COMPONENTS ================= */
 
@@ -1358,9 +1382,7 @@ function StatCard({ title, value }) {
 }
 
 function ChartBox({ children }) {
-  return (
-    <div className="bg-white p-6 rounded shadow">{children}</div>
-  );
+  return <div className="bg-white p-6 rounded shadow">{children}</div>;
 }
 
 function Management({ title, items, setItems }) {
@@ -1374,27 +1396,28 @@ function Management({ title, items, setItems }) {
           let phone = "";
 
           if (title === "User") {
-            phone = prompt("Enter phone number with country code (e.g. 919876543210)");
+            phone = prompt(
+              "Enter phone number with country code (e.g. 919876543210)",
+            );
             if (!phone) return;
           }
 
-          setItems(prev => [
-            ...prev,
-            { id: Date.now(), name, phone }
-          ]);
+          setItems((prev) => [...prev, { id: Date.now(), name, phone }]);
         }}
         className="bg-blue-600 text-white px-4 py-2 rounded mb-4"
       >
         + Add {title}
       </button>
 
-
-      {items.map(item => (
-        <div key={item._id} className="bg-white p-3 rounded shadow mb-2 flex justify-between">
+      {items.map((item) => (
+        <div
+          key={item.id}
+          className="bg-white p-3 rounded shadow mb-2 flex justify-between"
+        >
           {item.name}
           <button
             onClick={() =>
-              setItems(prev => prev.filter(i => i._id !== item._id))
+              setItems((prev) => prev.filter((i) => i.id !== item.id))
             }
             className="bg-red-600 text-white px-3 py-1 rounded"
           >
@@ -1422,27 +1445,54 @@ function TaskCard({
     task.status !== "Completed" &&
     new Date(task.dueDate) < new Date();
 
+  const priorityColors = {
+    High: "border-red-500",
+    Medium: "border-yellow-500",
+    Low: "border-green-500",
+  };
+
   return (
-    <div className={`p-5 rounded shadow ${isOverdue ? "bg-red-50 border-l-4 border-red-600" : "bg-white"
-      }`}>
-      <h3 className="font-semibold text-lg">{task.title}</h3>
+    <div
+      className={`p-4 rounded-xl shadow-sm border-l-4 ${priorityColors[task.priority] || "border-gray-300"
+        } ${isOverdue ? "bg-red-50" : "bg-white"}`}
+    >
+      {/* Header */}
+      <div className="flex justify-between items-start">
+        <h3 className="font-semibold text-base">{task.title}</h3>
 
-      <p className="text-sm text-gray-500">
-        Priority: {task.priority}
-      </p>
+        <div className="flex gap-2 flex-wrap">
+          <span className="text-xs px-2 py-1 bg-gray-100 rounded">
+            {task.priority}
+          </span>
 
-      {task.team && (
-        <p className="text-sm text-gray-500">
-          Team: <b>{task.team}</b>
-        </p>
-      )}
+          <span className="text-xs px-2 py-1 bg-blue-100 text-blue-700 rounded">
+            {task.status}
+          </span>
 
-      {task.assignedUser && (
-        <p className="text-sm text-gray-500">
-          Assigned To: <b>{task.assignedUser}</b>
-        </p>
-      )}
+          {isOverdue && (
+            <span className="text-xs px-2 py-1 bg-red-600 text-white rounded">
+              OVERDUE
+            </span>
+          )}
+        </div>
+      </div>
 
+      {/* Meta Info */}
+      <div className="text-xs text-gray-500 mt-2 space-y-1">
+        {task.team && (
+          <p>
+            Team: <b>{task.team}</b>
+          </p>
+        )}
+        {task.assignedUser && (
+          <p>
+            Assigned: <b>{task.assignedUser}</b>
+          </p>
+        )}
+        {task.dueDate && <p>Due: {task.dueDate}</p>}
+      </div>
+
+      {/* File */}
       {task.fileData && (
         <button
           onClick={() => {
@@ -1451,145 +1501,135 @@ function TaskCard({
             link.download = task.fileName || "file";
             link.click();
           }}
-          className="text-blue-600 underline text-sm mt-2"
+          className="text-blue-600 underline text-xs mt-2 block"
         >
-          📎 Download: {task.fileName}
+          📎 {task.fileName}
         </button>
       )}
 
-
-
-      <p className="text-sm mt-1">
-        Status: <b>{task.status}</b>
-        {isOverdue && (
-          <span className="inline-block mt-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
-            OVERDUE
-          </span>
-        )}
-
-      </p>
-
+      {/* Note */}
       {task.note && (
-        <p className="text-sm text-red-500 mt-2">
-          Note: {task.note}
-        </p>
+        <div className="mt-2 text-xs bg-yellow-50 border border-yellow-200 p-2 rounded">
+          {task.note}
+        </div>
       )}
 
+      {/* Actions */}
       <div className="mt-3 flex flex-wrap gap-2">
-        <button onClick={() => updateStatus(task._id, "Completed")}
-          className="px-4 py-2 text-sm font-medium bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition">
-          Done
+        {/* Done */}
+        <button
+          onClick={() => updateStatus(task.id, "Completed")}
+          className="text-xs bg-emerald-500 hover:bg-emerald-600 text-white px-3 py-1 rounded"
+        >
+          ✓ Done
         </button>
 
-        <button onClick={() => updateStatus(task._id, "In Progress")}
-          className="px-4 py-2 text-sm font-medium bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition">
-          Progress
+        {/* In Progress */}
+        <button
+          onClick={() => updateStatus(task.id, "In Progress")}
+          className="text-xs bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded"
+        >
+          ↻ Progress
         </button>
 
-        {role === "admin" && task.assignedUser && (
-          <button
-            onClick={() => {
-              const user = users.find(u => u.name === task.assignedUser);
-
-              if (!user || !user.phone) {
-                alert("No phone number found for this user");
-                return;
-              }
-
-              // Clean phone number (remove spaces, +, etc.)
-              const cleanPhone = user.phone.replace(/\D/g, "");
-
-              const message = `New Task Assigned:
-Task: ${task.title}
-Priority: ${task.priority}
-Due: ${task.dueDate || "No due date"}`;
-
-              const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
-
-              window.open(url, "_blank", "noopener,noreferrer");
-            }}
-            className="bg-emerald-600 text-white px-3 py-1 rounded text-sm"
-          >
-            WhatsApp
-          </button>
-
-        )}
-
+        {/* Not Done */}
         <button
           onClick={async () => {
             const note = prompt("Why not done?");
             if (!note) return;
 
             try {
-              const res = await API.put(`/tasks/${task._id}`, {
+              const res = await API.put(`/tasks/${task.id}`, {
                 status: "Pending",
-                note
+                note,
               });
 
-              setTasks(prev =>
-                prev.map(t =>
-                  t._id === task._id ? res.data : t
-                )
+              setTasks((prev) =>
+                prev.map((t) => (t.id === task.id ? res.data : t)),
               );
 
               showMessage("Marked Not Done");
-
             } catch (err) {
               console.log(err);
             }
           }}
-          className="bg-yellow-500 text-white px-3 py-1 rounded text-sm"
+          className="text-xs bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded"
         >
-          Not Done
+          ✕ Not Done
         </button>
 
+        {/* WhatsApp */}
+        {role === "admin" && task.assignedUser && (
+          <button
+            onClick={() => {
+              const user = users.find((u) => u.name === task.assignedUser);
+
+              if (!user || !user.phone) {
+                alert("No phone number found for this user");
+                return;
+              }
+
+              const cleanPhone = user.phone.replace(/\D/g, "");
+
+              const message = `Task Reminder:
+Task: ${task.title}
+Priority: ${task.priority}
+Status: ${task.status}
+Due: ${task.dueDate || "No due date"}`;
+
+              const url = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+
+              window.open(url, "_blank", "noopener,noreferrer");
+            }}
+            className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded"
+          >
+            📲 WhatsApp
+          </button>
+        )}
+
+        {/* Add Note */}
         <button
           onClick={async () => {
             const note = prompt("Add note");
             if (!note) return;
 
             try {
-              const res = await API.put(`/tasks/${task._id}`, {
-                note
-              });
+              const res = await API.put(`/tasks/${task.id}`, { note });
 
-              setTasks(prev =>
-                prev.map(t =>
-                  t._id === task._id ? res.data : t
-                )
+              setTasks((prev) =>
+                prev.map((t) => (t.id === task.id ? res.data : t)),
               );
 
               showMessage("Note Added");
-
             } catch (err) {
               console.log(err);
             }
           }}
-          className="bg-purple-600 text-white px-3 py-1 rounded text-sm"
+          className="text-xs bg-purple-600 hover:bg-purple-700 text-white px-3 py-1 rounded"
         >
-          Add Note
+          ✎ Note
         </button>
 
+        {/* Delete */}
         {role === "admin" && (
           <button
-            onClick={() => deleteTask(task._id
-
-            )}
-            className="px-4 py-2 text-sm font-medium bg-red-500 hover:bg-red-600 text-white rounded-lg transition"
+            onClick={() => deleteTask(task.id)}
+            className="text-xs bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded"
           >
-            Delete
+            🗑 Delete
           </button>
-          
         )}
-    
       </div>
-      
     </div>
   );
-  
 }
 
-function MemberButtons({ filteredTasks, currentUser, setReports, addNotification }) {
+function MemberButtons({
+  filteredTasks,
+  currentUser,
+  setReports,
+  addNotification,
+}) {
   return (
     <div className="mt-6 flex gap-3 flex-wrap">
       <button
@@ -1597,49 +1637,29 @@ function MemberButtons({ filteredTasks, currentUser, setReports, addNotification
           const today = new Date().toLocaleDateString();
 
           const reportTasks = filteredTasks.map(
-            t => `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`
+            (t) =>
+              `${t.title} - ${t.status}${t.note ? ` | Note: ${t.note}` : ""}`,
           );
-
 
           try {
             const res = await API.post("/reports", {
               user: currentUser.name,
               date: today,
               type: "task",
-              tasks: reportTasks
+              tasks: reportTasks,
             });
 
-            setReports(prev => [res.data, ...prev]);
+            setReports((prev) => [res.data, ...prev]);
 
             addNotification(
               `${currentUser.name} submitted daily report`,
-              "admin"
+              "admin",
             );
 
             alert("Report Submitted");
-
           } catch (err) {
             console.log(err.response?.data || err.message);
             alert("Error submitting report");
-          }
-          addNotification(
-            `${currentUser.name} submitted daily report`,
-            "admin"
-          );
-
-
-          alert("Report Submitted");
-
-          // 🔔 WhatsApp to Admin
-          const adminPhone = prompt("Enter Admin WhatsApp number with country code");
-
-          if (adminPhone) {
-            const message = `Daily Report from ${currentUser.name}:
-${reportTasks.join("\n")}`;
-
-            window.open(
-              `https://wa.me/${adminPhone}?text=${encodeURIComponent(message)}`
-            );
           }
         }}
         className="bg-green-600 text-white px-4 py-2 rounded"
@@ -1647,16 +1667,15 @@ ${reportTasks.join("\n")}`;
         Submit Daily Report
       </button>
 
-
       <button
         onClick={() => {
           const text = filteredTasks
-            .map(t => `• ${t.title} - ${t.status}`)
-            .join("%0A");
+            .map((t) => `• ${t.title} - ${t.status}`)
+            .join("\n");
 
-          window.open(
-            `https://wa.me/?text=Daily Report%0A${text}`
-          );
+          const message = `Daily Report from ${currentUser.name}:\n\n${text}`;
+
+          window.location.href = `https://wa.me/${ADMIN_WHATSAPP}?text=${encodeURIComponent(message)}`;
         }}
         className="bg-emerald-600 text-white px-4 py-2 rounded"
       >
@@ -1667,12 +1686,12 @@ ${reportTasks.join("\n")}`;
         onClick={() => {
           const headers = "Task,Status\n";
           const rows = filteredTasks
-            .map(t => `${t.title},${t.status}`)
+            .map((t) => `${t.title},${t.status}`)
             .join("\n");
 
           const link = document.createElement("a");
           link.href = encodeURI(
-            "data:text/csv;charset=utf-8," + headers + rows
+            "data:text/csv;charset=utf-8," + headers + rows,
           );
           link.download = "daily_report.csv";
           link.click();
@@ -1691,8 +1710,8 @@ function KanbanColumn({ id, tasks }) {
   return (
     <div ref={setNodeRef} className="bg-white p-4 rounded shadow min-h-[300px]">
       <h3 className="font-semibold mb-4">{id}</h3>
-      {tasks.map(task => (
-        <KanbanItem key={task._id} task={task} />
+      {tasks.map((task) => (
+        <KanbanItem key={task.id} task={task} />
       ))}
     </div>
   );
@@ -1700,11 +1719,11 @@ function KanbanColumn({ id, tasks }) {
 
 function KanbanItem({ task }) {
   const { attributes, listeners, setNodeRef, transform, transition } =
-    useDraggable({ id: task._id.toString() });
+    useDraggable({ id: task.id.toString() });
 
   const style = {
     transform: CSS.Translate.toString(transform),
-    transition
+    transition,
   };
 
   return (
@@ -1714,10 +1733,10 @@ function KanbanItem({ task }) {
       {...listeners}
       {...attributes}
       className={`p-3 rounded mb-2 cursor-grab ${task.dueDate &&
-        task.status !== "Completed" &&
-        new Date(task.dueDate) < new Date()
-        ? "bg-red-100 border border-red-500"
-        : "bg-gray-100"
+          task.status !== "Completed" &&
+          new Date(task.dueDate) < new Date()
+          ? "bg-red-100 border border-red-500"
+          : "bg-gray-100"
         }`}
     >
       {task.title}
@@ -1725,35 +1744,24 @@ function KanbanItem({ task }) {
   );
 }
 
-function TaskModal({
-  form,
-  setForm,
-  users,
-  teams,
-  createTask,
-  setShowModal
-}) {
-
+function TaskModal({ form, setForm, users, teams, createTask, setShowModal }) {
   const availableMembers = form.team
-    ? teams.find(t => t.name === form.team)?.members || []
-    : users.map(u => u.name);
+    ? teams.find((t) => t.name === form.team)?.members || []
+    : users.map((u) => u.name);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
       <div className="bg-white p-6 rounded w-[400px] space-y-3">
-
         <input
           placeholder="Task Title"
           value={form.title}
-          onChange={e => setForm({ ...form, title: e.target.value })}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
           className="w-full border p-2 rounded"
         />
 
         <select
           value={form.priority}
-          onChange={e =>
-            setForm({ ...form, priority: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, priority: e.target.value })}
           className="w-full border p-2 rounded"
         >
           <option>Low</option>
@@ -1764,36 +1772,32 @@ function TaskModal({
         <input
           type="date"
           value={form.dueDate}
-          onChange={e =>
-            setForm({ ...form, dueDate: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, dueDate: e.target.value })}
           className="w-full border p-2 rounded"
         />
 
         {/* TEAM SELECT */}
         <select
           value={form.team || ""}
-          onChange={e =>
+          onChange={(e) =>
             setForm({
               ...form,
               team: e.target.value,
-              assignedUser: ""
+              assignedUser: "",
             })
           }
           className="w-full border p-2 rounded"
         >
           <option value="">Select Team (Optional)</option>
-          {teams.map(team => (
-            <option key={team._id}>{team.name}</option>
+          {teams.map((team) => (
+            <option key={team.id}>{team.name}</option>
           ))}
         </select>
 
         {/* MEMBER SELECT */}
         <select
           value={form.assignedUser}
-          onChange={e =>
-            setForm({ ...form, assignedUser: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, assignedUser: e.target.value })}
           className="w-full border p-2 rounded"
         >
           <option value="">Select Member</option>
@@ -1815,14 +1819,13 @@ function TaskModal({
               setForm({
                 ...form,
                 fileName: file.name,
-                fileData: reader.result
+                fileData: reader.result,
               });
             };
             reader.readAsDataURL(file);
           }}
           className="w-full border p-2 rounded"
         />
-
 
         <button
           onClick={createTask}
@@ -1837,25 +1840,29 @@ function TaskModal({
         >
           Cancel
         </button>
-
       </div>
     </div>
   );
 }
-function TeamModal({ teamForm, setTeamForm, users, setTeams, setShowTeamModal }) {
+function TeamModal({
+  teamForm,
+  setTeamForm,
+  users,
+  setTeams,
+  setShowTeamModal,
+}) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
       <div className="bg-white p-6 rounded w-[400px] space-y-3">
-
         <h2 className="text-xl font-bold">Create Team</h2>
 
         <input
           placeholder="Team Name"
           value={teamForm.name}
           onChange={(e) =>
-            setTeamForm(prev => ({
+            setTeamForm((prev) => ({
               ...prev,
-              name: e.target.value
+              name: e.target.value,
             }))
           }
           className="w-full border p-2 rounded"
@@ -1865,33 +1872,32 @@ function TeamModal({ teamForm, setTeamForm, users, setTeams, setShowTeamModal })
           placeholder="Work / Description"
           value={teamForm.work}
           onChange={(e) =>
-            setTeamForm(prev => ({
+            setTeamForm((prev) => ({
               ...prev,
-              work: e.target.value
+              work: e.target.value,
             }))
           }
           className="w-full border p-2 rounded"
         />
 
-
         <div>
           <p className="text-sm mb-2">Select Members</p>
 
           <div className="max-h-32 overflow-y-auto border rounded p-2">
-            {users.map(user => (
-              <label key={user._id} className="flex items-center gap-2 text-sm">
+            {users.map((user) => (
+              <label key={user.id} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"
                   checked={teamForm.members.includes(user.name)}
                   onChange={() => {
-                    setTeamForm(prev => {
+                    setTeamForm((prev) => {
                       const exists = prev.members.includes(user.name);
 
                       return {
                         ...prev,
                         members: exists
-                          ? prev.members.filter(m => m !== user.name)
-                          : [...prev.members, user.name]
+                          ? prev.members.filter((m) => m !== user.name)
+                          : [...prev.members, user.name],
                       };
                     });
                   }}
@@ -1920,18 +1926,17 @@ function TeamModal({ teamForm, setTeamForm, users, setTeams, setShowTeamModal })
               try {
                 const res = await API.post("/teams", teamForm);
 
-                setTeams(prev => [...prev, res.data]);
+                setTeams((prev) => [...prev, res.data]);
 
                 setTeamForm({
                   name: "",
                   work: "",
-                  members: []
+                  members: [],
                 });
 
                 setShowTeamModal(false);
 
                 alert("Team Created Successfully");
-
               } catch (err) {
                 console.log(err.response?.data || err.message);
                 alert("Error creating team");
@@ -1940,31 +1945,27 @@ function TeamModal({ teamForm, setTeamForm, users, setTeams, setShowTeamModal })
           >
             Create
           </button>
-
         </div>
-
       </div>
     </div>
   );
 }
 
-
 function TodoModal({ todoForm, setTodoForm, createTodo, setShowTodoModal }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-40 flex justify-center items-center">
       <div className="bg-white p-6 rounded w-96 space-y-3">
-
         <input
           placeholder="Todo Title"
           value={todoForm.title}
-          onChange={e => setTodoForm({ ...todoForm, title: e.target.value })}
+          onChange={(e) => setTodoForm({ ...todoForm, title: e.target.value })}
           className="w-full border p-2 rounded"
         />
 
         <textarea
           placeholder="Note (optional)"
           value={todoForm.note}
-          onChange={e => setTodoForm({ ...todoForm, note: e.target.value })}
+          onChange={(e) => setTodoForm({ ...todoForm, note: e.target.value })}
           className="w-full border p-2 rounded"
         />
 
@@ -1981,7 +1982,6 @@ function TodoModal({ todoForm, setTodoForm, createTodo, setShowTodoModal }) {
         >
           Cancel
         </button>
-
       </div>
     </div>
   );
@@ -1992,7 +1992,9 @@ function MessagesPage({
   currentUser,
   users,
   messages,
-  sendMessage
+  sendMessage,
+  deleteForMe,
+  deleteForEveryone,
 }) {
   const [selectedUser, setSelectedUser] = useState("");
   const [text, setText] = useState("");
@@ -2003,7 +2005,9 @@ function MessagesPage({
     role === "admin"
       ? messages
       : messages.filter(
-        m => m.to === me || m.from === me
+        (m) =>
+          (m.to === me || m.from === me) &&
+          !(m.deletedFor || []).includes(me),
       );
 
   const [openDay, setOpenDay] = useState("Today");
@@ -2042,75 +2046,104 @@ function MessagesPage({
     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 h-[75vh] relative">
       {/* Conversation List */}
       <div className="bg-white p-4 rounded shadow md:col-span-2 flex flex-col">
-
         <h3 className="font-bold mb-4">Inbox</h3>
 
         <div className="flex-1 overflow-y-auto pr-2 pb-40 md:pb-0">
-
           {visibleMessages.length === 0 && (
             <p className="text-gray-500">No messages yet</p>
           )}
 
           {Object.entries(groupByDate).map(([day, msgs]) => (
             <div key={day} className="mb-4">
-
               <div
                 className="cursor-pointer font-bold bg-gray-200 px-3 py-2 rounded"
                 onClick={() => setOpenDay(openDay === day ? null : day)}
               >
                 {day} ({msgs.length})
               </div>
-
               {openDay === day && (
                 <div className="mt-2 space-y-2">
-                  {msgs.map(msg => (
+                  {msgs.map((msg) => (
                     <div
                       key={msg._id}
-                      className={`p-3 rounded ${msg.from === me
-                        ? "bg-blue-100 text-right"
-                        : "bg-gray-100"
+                      className={`relative p-3 rounded ${msg.from === me
+                          ? "bg-blue-100 text-right"
+                          : "bg-gray-100"
                         }`}
                     >
-                      <p className="text-sm font-semibold">
-                        {msg.from} → {msg.to}
-                      </p>
-                      <p>{msg.content}</p>
-                      <p className="text-xs text-gray-500 mt-1">
-                        {new Date(msg.createdAt).toLocaleTimeString()}
-                      </p>
+                      {/* 3 Dots Menu */}
+                      <div className="absolute top-1 right-2">
+                        <details className="relative">
+                          <summary className="list-none cursor-pointer text-lg">
+                            ⋮
+                          </summary>
+
+                          <div className="absolute right-0 mt-1 w-40 bg-white shadow-lg rounded text-sm z-10">
+                            <button
+                              onClick={() => deleteForMe(msg._id)}
+                              className="block w-full text-left px-3 py-2 hover:bg-gray-100"
+                            >
+                              Delete for me
+                            </button>
+
+                            {msg.from === me && (
+                              <button
+                                onClick={() => deleteForEveryone(msg._id)}
+                                className="block w-full text-left px-3 py-2 hover:bg-gray-100 text-red-600"
+                              >
+                                Delete for everyone
+                              </button>
+                            )}
+                          </div>
+                        </details>
+                      </div>
+
+                      {/* Message Content */}
+                      {msg.isDeletedForEveryone ? (
+                        <p className="italic text-gray-500">
+                          This message was deleted
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold">
+                            {msg.from} → {msg.to}
+                          </p>
+                          <p>{msg.content}</p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {new Date(msg.createdAt).toLocaleTimeString()}
+                          </p>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
               )}
-
             </div>
           ))}
-
         </div>
-
       </div>
 
-
-
       {/* Send Message */}
-      <div className="
+      <div
+        className="
  bg-white p-4 rounded shadow
   sticky bottom-0
   md:static
-">
+"
+      >
         <h3 className="font-bold mb-4">Send Message</h3>
 
         <select
           value={selectedUser}
-          onChange={e => setSelectedUser(e.target.value)}
+          onChange={(e) => setSelectedUser(e.target.value)}
           className="w-full border p-2 rounded mb-3"
         >
           <option value="">Select User</option>
 
           {role === "admin" && (
             <>
-              {users.map(u => (
-                <option key={u._id}>{u.name}</option>
+              {users.map((u) => (
+                <option key={u.id}>{u.name}</option>
               ))}
             </>
           )}
@@ -2120,18 +2153,17 @@ function MessagesPage({
               <option>Admin</option>
 
               {users
-                .filter(u => u.name !== currentUser.name)
-                .map(u => (
-                  <option key={u._id}>{u.name}</option>
+                .filter((u) => u.name !== currentUser.name)
+                .map((u) => (
+                  <option key={u.id}>{u.name}</option>
                 ))}
             </>
           )}
         </select>
 
-
         <textarea
           value={text}
-          onChange={e => setText(e.target.value)}
+          onChange={(e) => setText(e.target.value)}
           placeholder="Type message..."
           className="w-full border p-2 rounded mb-3"
         />
@@ -2147,9 +2179,60 @@ function MessagesPage({
           Send
         </button>
       </div>
-
     </div>
   );
 }
+function TaskSection({
+  title,
+  tasks,
+  role,
+  updateStatus,
+  deleteTask,
+  setTasks,
+  showMessage,
+  users,
+}) {
+  const [open, setOpen] = useState(true);
 
+  return (
+    <div className="bg-white rounded-xl shadow">
+      {/* Header */}
+      <div
+        onClick={() => setOpen(!open)}
+        className="flex justify-between items-center px-4 py-3 cursor-pointer border-b"
+      >
+        <h2 className="font-bold">{title}</h2>
+
+        <div className="flex items-center gap-3">
+          <span className="text-xs bg-gray-200 px-3 py-1 rounded-full">
+            {tasks.length}
+          </span>
+          <span>{open ? "▲" : "▼"}</span>
+        </div>
+      </div>
+
+      {/* Body */}
+      {open && (
+        <div className="max-h-96 overflow-y-auto p-4 space-y-3">
+          {tasks.length === 0 ? (
+            <p className="text-gray-400 text-sm">No tasks</p>
+          ) : (
+            tasks.map((task) => (
+              <TaskCard
+                key={task.id}
+                task={task}
+                role={role}
+                updateStatus={updateStatus}
+                deleteTask={deleteTask}
+                setTasks={setTasks}
+                showMessage={showMessage}
+                users={users}
+              />
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 export default App;
